@@ -376,8 +376,10 @@ document.getElementById('f_area').addEventListener('change', (e)=> renderProduct
 /* ---------- Fetch data from Google Sheets ---------- */
 async function loadRecords(){
   try {
-    const response = await fetch(WEB_APP_URL);
-    const data = await response.json();
+    const response = await fetch(WEB_APP_URL, { redirect: 'follow' });
+    const textData = await response.text();
+    const data = JSON.parse(textData);
+    
     if (Array.isArray(data)) {
       records = data.map(item => ({
         date: item.date || item.Date || todayStr(),
@@ -443,22 +445,25 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   const btn = document.getElementById('saveBtn');
   btn.disabled = true; btn.textContent = 'Saving...';
 
-  // Send data to Google Sheets
+  // Send data using text/plain to bypass CORS preflight restrictions in Google Apps Script
   try {
     await fetch(WEB_APP_URL, {
       method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(rec)
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(rec),
+      redirect: 'follow'
     });
     records.unshift(rec);
+    msg.className = 'save-msg ok';
+    msg.textContent = 'Record saved and sent to Google Sheets!';
   } catch (err) {
     console.error('Error sending to Google Sheets:', err);
+    records.unshift(rec); // Local fallback
+    msg.className = 'save-msg ok';
+    msg.textContent = 'Saved locally (Network error sending to Google Sheets)';
   }
 
   btn.disabled = false; btn.textContent = '+ Add';
-  msg.className = 'save-msg ok';
-  msg.textContent = 'Record saved and sent to Google Sheets!';
 
   document.getElementById('f_batch').value='';
   document.getElementById('f_qty').value='';
