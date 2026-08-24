@@ -382,7 +382,7 @@ function renderProductField(area){
 }
 document.getElementById('f_area').addEventListener('change', (e)=> renderProductField(e.target.value));
 
-/* ---------- Fetch Data & Reverse to Show Newest First ---------- */
+/* ---------- Fetch Data & Fix Fallbacks for Waste Type and Cause ---------- */
 async function loadRecords(){
   try {
     const response = await fetch(WEB_APP_URL, { redirect: 'follow' });
@@ -419,18 +419,17 @@ async function loadRecords(){
           batch: item.batch || item.Batch || '',
           product: item.product || item.Product || '',
           stage: item.stage || item.Stage || '',
-          type: item.type || item['Waste Type'] || item.wasteType || '',
+          type: item.type || item['Waste Type'] || item.wasteType || item['waste Type'] || '',
           qty: parseFloat(item.qty || item.quantity || item.Quantity) || 0,
           unit: item.unit || item.Unit || 'kg',
           cost: parseFloat(item.cost || item.Cost) || 0,
-          cause: item.cause || item['Root Cause'] || item.reason || '',
-          details: item.details || item.Details || '',
-          action: item.action || item.Action || '',
+          cause: item.cause || item['Root Cause'] || item.rootCause || item.reason || '',
+          details: item.details || item.Details || item['Additional Details'] || '',
+          action: item.action || item.Action || item['Corrective Action'] || '',
           status: item.status || item.Status || 'Resolved'
         };
       });
       
-      // عكس الترتيب ليصبح الأحدث فوق والأقدم تحت
       records = rawRecords.reverse();
     }
   } catch (e) {
