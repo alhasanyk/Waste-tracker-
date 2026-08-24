@@ -1,723 +1,267 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Waste Tracker — Halwani Bros</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-<style>
-  :root{
-    --green-900: #163C1B;
-    --green-800: #1F5423;
-    --green-700: #2C6E2E;
-    --green-600: #3E8B3B;
-    --green-500: #6FA83A;
-    --green-100: #EAF3E6;
-    --white: #FFFFFF;
-    --amber: #C1791F;
-    --red: #B23B2E;
-    --ink: #141712;
-    --muted: #5B6255;
-    --line: #CFE0C9;
-  }
-  *{box-sizing:border-box; margin:0; padding:0;}
-  body{
-    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
-    background: var(--white);
-    color: var(--ink);
-    min-height:100vh;
-  }
-  .shell{ max-width:520px; margin:0 auto; min-height:100vh; background:var(--white); display:flex; flex-direction:column;}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HB Waste Tracker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: #f4f6f8; padding: 20px; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; background: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    
+    .header { text-align: center; margin-bottom: 20px; }
+    .header h1 { font-size: 22px; color: #1a252c; font-weight: bold; }
+    .header p { font-size: 14px; color: #6c757d; }
 
-  /* Header */
-  header{
-    padding:20px 20px 16px;
-    color:var(--ink);
-    background:var(--white);
-    border-bottom:2px solid var(--green-600);
-  }
-  .brandrow{ display:flex; align-items:center; gap:12px; }
-  .badge{
-    font-family: Georgia, 'Times New Roman', serif;
-    font-weight:700; font-style:italic;
-    font-size:30px; line-height:1;
-    color: var(--green-700);
-    letter-spacing:.01em;
-  }
-  .brand-text .eyebrow{ font-size:10px; letter-spacing:.18em; color:var(--green-700); font-weight:700; text-transform:uppercase; }
-  .brand-text h1{ font-size:19px; font-weight:700; margin-top:2px; color:var(--ink); }
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+    .tab-btn { flex: 1; padding: 10px; border: 1px solid #007bff; background: #fff; color: #007bff; border-radius: 6px; font-weight: 600; cursor: pointer; text-align: center; }
+    .tab-btn.active { background: #007bff; color: #fff; }
 
-  .stats{ display:flex; gap:10px; margin:16px 0 4px; }
-  .stat{
-    flex:1; background: var(--white); border:1.5px solid var(--green-600);
-    border-radius:9px; padding:10px 8px; text-align:center;
-  }
-  .stat .num{ font-size:16px; font-weight:800; color:var(--green-700); line-height:1.25; }
-  .stat .num.text{ font-size:12px; }
-  .stat .lbl{ font-size:9px; color:var(--muted); margin-top:4px; letter-spacing:.03em; }
+    .section-title { font-size: 13px; font-weight: 700; color: #007bff; text-transform: uppercase; letter-spacing: 0.5px; margin: 15px 0 10px; border-bottom: 1px solid #e9ecef; padding-bottom: 5px; }
 
-  /* Tabs */
-  nav.tabs{
-    display:flex; gap:6px; padding:14px 20px 12px; background:var(--white);
-  }
-  nav.tabs button{
-    flex:1; padding:11px 6px; border:1.5px solid var(--green-600); border-radius:8px; cursor:pointer;
-    font-family:inherit; font-size:11.5px; font-weight:700; letter-spacing:.02em;
-    background:var(--white); color:var(--green-700); transition:.15s;
-  }
-  nav.tabs button.active{ background:var(--green-600); color:#fff; }
+    .form-group { margin-bottom: 15px; }
+    .form-row { display: flex; gap: 15px; }
+    .form-row .form-group { flex: 1; }
 
-  main{ flex:1; background:var(--white); padding:6px 16px 100px;}
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #495057; }
+    input, select, textarea { width: 100%; padding: 10px 12px; font-size: 14px; border: 1px solid #ced4da; border-radius: 6px; outline: none; background: #fafafa; }
+    input:focus, select:focus, textarea:focus { border-color: #007bff; background: #fff; }
 
-  /* Panels */
-  .panel{
-    background:var(--white); border:1.5px solid var(--line); border-radius:12px;
-    padding:16px 16px 6px; margin-bottom:16px;
-  }
-  .panel-title{
-    font-size:10.5px; font-weight:700; letter-spacing:.09em; color:var(--green-700);
-    text-transform:uppercase; margin-bottom:14px; padding-bottom:10px; border-bottom:1.5px solid var(--line);
-  }
+    .btn-submit { width: 100%; padding: 12px; background: #28a745; color: #fff; font-size: 16px; font-weight: 600; border: none; border-radius: 6px; cursor: pointer; margin-top: 15px; }
+    .btn-submit:hover { background: #218838; }
+    .btn-submit:disabled { background: #6c757d; cursor: not-allowed; }
 
-  .field{ margin-bottom:14px; }
-  .field label{ display:block; font-size:12px; font-weight:600; margin-bottom:5px; color:var(--ink); }
-  .field input, .field select, .field textarea{
-    width:100%; padding:10px 12px; border:1.5px solid var(--line); border-radius:7px;
-    font-family:inherit; font-size:13.5px; background:var(--white); color:var(--ink);
-  }
-  .field textarea{ resize:vertical; min-height:52px; }
-  .row2{ display:flex; gap:10px; }
-  .row2 .field{ flex:1; }
-  .field input:focus, .field select:focus, .field textarea:focus{
-    outline:none; border-color:var(--green-600); box-shadow:0 0 0 3px rgba(62,139,59,.15);
-  }
-
-  .save-btn{
-    width:100%; padding:15px; margin-top:4px; border:1.5px solid var(--green-800); border-radius:8px;
-    background:var(--green-600); color:#fff; font-family:inherit; font-size:14px; font-weight:700; letter-spacing:.03em;
-    cursor:pointer;
-  }
-  .save-btn:active{ background:var(--green-700); }
-  .save-btn:disabled{ opacity:.7; cursor:default; }
-  .save-msg{ text-align:center; font-size:12px; font-weight:600; margin-top:10px; min-height:16px; }
-  .save-msg.ok{ color:var(--green-700); }
-  .save-msg.err{ color:var(--red); }
-
-  /* Filters (shared style for History & Analyze) */
-  .filter-panel{
-    border:1.5px solid var(--green-600); border-radius:10px; padding:12px; margin-bottom:16px; background:var(--green-100);
-  }
-  .filter-panel .row2{ margin-bottom:10px; }
-  .filter-panel .row2:last-child{ margin-bottom:0; }
-  .filter-panel label{ font-size:10.5px; font-weight:700; color:var(--green-800); margin-bottom:4px; display:block; text-transform:uppercase; letter-spacing:.04em;}
-  .filter-panel select, .filter-panel input{
-    width:100%; padding:9px 10px; border:1.5px solid var(--green-600); border-radius:7px; font-family:inherit; font-size:12px; background:var(--white); color:var(--ink);
-  }
-
-  .ticket{
-    background:var(--white); border:1.5px solid var(--line); border-radius:10px; padding:15px;
-    margin-bottom:12px; position:relative; overflow:hidden;
-  }
-  .ticket::before{
-    content:"HB"; position:absolute; top:12px; left:10px;
-    font-family: Georgia, serif; font-weight:700; font-style:italic; font-size:15px;
-    color: rgba(44,110,46,.35);
-  }
-  .t-head{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; padding-left:30px;}
-  .t-title{ font-weight:700; font-size:14px; }
-  .t-date{ font-size:10.5px; color:var(--muted); margin-top:2px; }
-  .t-cost{ font-weight:700; color:var(--amber); font-size:13.5px; white-space:nowrap; }
-  .t-tags{ display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
-  .tag{ font-size:10px; font-weight:600; padding:3px 9px; border-radius:20px; background:var(--green-100); color:var(--green-800); border:1px solid var(--line); }
-  .tag.status-open{ background:#F3DACE; color:#8a3a24; border-color:#EBC4AE; }
-  .tag.status-done{ background:var(--green-100); color:var(--green-700); }
-  .t-cause{ font-size:12px; color:var(--ink); margin-top:6px; line-height:1.55; }
-  .t-meta{ font-size:10.5px; color:var(--muted); margin-top:8px; }
-  .empty{ text-align:center; color:var(--muted); font-size:12.5px; padding:40px 10px; line-height:1.6; }
-
-  .chart-box{ height:240px; position:relative; }
-  .panel h3{ font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--green-700); margin-bottom:6px; text-transform:uppercase;}
-  .panel .chart-note{ font-size:10.5px; color:var(--muted); margin-bottom:12px; }
-
-  .hidden{ display:none !important; }
-</style>
+    /* Table Styles */
+    .table-container { overflow-x: auto; margin-top: 15px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 10px; text-align: left; border-bottom: 1px solid #dee2e6; }
+    th { background: #f8f9fa; font-weight: 600; color: #495057; }
+    .loading { text-align: center; padding: 20px; color: #6c757d; font-size: 14px; }
+  </style>
 </head>
 <body>
-<div class="shell">
-  <header>
-    <div class="brandrow">
-      <div class="badge">HB</div>
-      <div class="brand-text">
-        <div class="eyebrow">Halwani Bros</div>
-        <h1>Waste Tracker</h1>
-      </div>
-    </div>
-    <div class="stats">
-      <div class="stat"><div class="num text" id="statTopArea">—</div><div class="lbl">TOP WASTE/MONTH</div></div>
-      <div class="stat"><div class="num" id="statTopAreaCost">—</div><div class="lbl">COST (SAR)</div></div>
-      <div class="stat"><div class="num text" id="statTopProduct">—</div><div class="lbl">TOP WASTED PRODUCT (MONTH)</div></div>
-    </div>
-  </header>
 
-  <nav class="tabs">
-    <button class="active" data-tab="form">+ Add Waste</button>
-    <button data-tab="history">History</button>
-    <button data-tab="dashboard">Analyze</button>
-  </nav>
+<div class="container">
+  <div class="header">
+    <h1>HB Waste Tracker</h1>
+    <p>Internal Waste Recording System</p>
+  </div>
 
-  <main>
-    <!-- FORM TAB -->
-    <section id="tab-form">
-      <div class="panel">
-        <div class="panel-title">Basic Information</div>
-        <div class="row2">
-          <div class="field"><label>Date</label><input type="date" id="f_date"></div>
-          <div class="field"><label>Time</label><input type="time" id="f_time"></div>
-        </div>
-        <div class="row2">
-          <div class="field"><label>Shift</label>
-            <select id="f_shift"><option value="Morning">Morning</option><option value="Afternoon">Afternoon</option><option value="Night">Night</option></select>
-          </div>
-          <div class="field"><label>Reported By</label><input type="text" id="f_reporter" placeholder="e.g., A. Mansour"></div>
-        </div>
-        <div class="field"><label>Area</label>
-          <select id="f_area"><option>Area 1</option><option>Area 2</option><option>Area 3</option><option>Area 4</option></select>
-        </div>
-        <div class="field"><label>Batch / Lot Number</label><input type="text" id="f_batch" placeholder="e.g., B-2026-0811"></div>
-      </div>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('add')">+ Add Waste</button>
+    <button class="tab-btn" onclick="switchTab('history')">History Log</button>
+  </div>
 
-      <div class="panel">
-        <div class="panel-title">Product &amp; Stage</div>
-        <div class="field">
-          <label>Product / Material</label>
-          <div id="productFieldContainer"></div>
+  <!-- ADD WASTE FORM -->
+  <div id="addTab">
+    <form id="wasteForm">
+      <div class="section-title">BASIC INFORMATION</div>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="date" required>
         </div>
-        <div class="row2">
-          <div class="field"><label>Stage</label>
-            <select id="f_stage">
-              <option>Receiving</option><option>Storage</option><option>Production</option><option>Packaging</option><option>Internal Transfer</option>
-            </select>
-          </div>
-          <div class="field"><label>Waste Type</label>
-            <select id="f_type">
-              <option>Raw Material</option><option>Work-in-Progress</option><option>Finished Product</option>
-            </select>
-          </div>
+        <div class="form-group">
+          <label>Time</label>
+          <input type="time" id="time" required>
         </div>
       </div>
 
-      <div class="panel">
-        <div class="panel-title">Quantity &amp; Cost</div>
-        <div class="row2">
-          <div class="field"><label>Quantity</label><input type="number" step="any" id="f_qty" placeholder="0"></div>
-          <div class="field"><label>Unit</label>
-            <select id="f_unit"><option value="kg">kg</option><option value="L">L</option><option value="units">units</option></select>
-          </div>
-        </div>
-        <div class="field"><label>Estimated Cost (SAR)</label><input type="number" step="any" id="f_cost" placeholder="0"></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-title">Cause &amp; Corrective Action</div>
-        <div class="field"><label>Root Cause</label>
-          <select id="f_cause">
-            <option>Raw Material Defect</option>
-            <option>Equipment Malfunction</option>
-            <option>Human / Operational Error</option>
-            <option>Expired Shelf Life</option>
-            <option>Microbiological Contamination</option>
-            <option>Incorrect Process Settings</option>
-            <option>Storage Damage</option>
-            <option>Packaging / Labeling Error</option>
-            <option>Other</option>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Shift</label>
+          <select id="shift" required>
+            <option value="">Select Shift</option>
+            <option>Morning</option>
+            <option>Evening</option>
+            <option>Night</option>
           </select>
         </div>
-        <div class="field"><label>Additional Details</label><textarea id="f_details" placeholder="Briefly describe the incident..."></textarea></div>
-        <div class="row2">
-          <div class="field"><label>Corrective Action</label>
-            <select id="f_action"><option value="Disposed">Disposed</option><option value="Recycled">Recycled</option><option value="Reworked">Reworked</option></select>
-          </div>
-          <div class="field"><label>Status</label>
-            <select id="f_status"><option value="Resolved">Resolved</option><option value="Under Review">Under Review</option></select>
-          </div>
+        <div class="form-group">
+          <label>Reported By</label>
+          <input type="text" id="reportedBy" placeholder="e.g., A. Mansour" required>
         </div>
       </div>
 
-      <button class="save-btn" id="saveBtn">+ Add</button>
-      <div class="save-msg" id="saveMsg"></div>
-    </section>
-
-    <!-- HISTORY TAB -->
-    <section id="tab-history" class="hidden">
-      <div class="filter-panel">
-        <div class="row2">
-          <div class="field" style="margin-bottom:0;"><label>Area</label>
-            <select id="filterArea"><option value="">All Areas</option><option>Area 1</option><option>Area 2</option><option>Area 3</option><option>Area 4</option></select>
-          </div>
-          <div class="field" style="margin-bottom:0;"><label>Product</label>
-            <select id="filterProduct"><option value="">All Products</option></select>
-          </div>
-        </div>
-        <div class="row2">
-          <div class="field" style="margin-bottom:0;"><label>From</label><input type="date" id="filterDateFrom"></div>
-          <div class="field" style="margin-bottom:0;"><label>To</label><input type="date" id="filterDateTo"></div>
-        </div>
-      </div>
-      <div id="historyList"><div class="empty">Loading...</div></div>
-    </section>
-
-    <!-- DASHBOARD TAB -->
-    <section id="tab-dashboard" class="hidden">
-      <div class="filter-panel">
-        <div class="row2">
-          <div class="field" style="margin-bottom:0;"><label>Area</label>
-            <select id="aFilterArea"><option value="">All Areas</option><option>Area 1</option><option>Area 2</option><option>Area 3</option><option>Area 4</option></select>
-          </div>
-          <div class="field" style="margin-bottom:0;"><label>Product</label>
-            <select id="aFilterProduct"><option value="">All Products</option></select>
-          </div>
-        </div>
-        <div class="row2">
-          <div class="field" style="margin-bottom:0;"><label>From</label><input type="date" id="aFilterDateFrom"></div>
-          <div class="field" style="margin-bottom:0;"><label>To</label><input type="date" id="aFilterDateTo"></div>
-        </div>
+      <div class="form-group">
+        <label>Area</label>
+        <select id="area" required>
+          <option value="">Select Area</option>
+          <option>Area 1</option>
+          <option>Area 2</option>
+          <option>Packaging Line</option>
+          <option>Kitchen / Preparation</option>
+        </select>
       </div>
 
-      <div class="panel">
-        <h3>Waste Cost Share</h3>
-        <div class="chart-note" id="pieNote">All areas, ranked by estimated cost (SAR) — largest slice is the costliest.</div>
-        <div class="chart-box"><canvas id="pieCanvas"></canvas></div>
+      <div class="form-group">
+        <label>Batch / Lot Number</label>
+        <input type="text" id="batch" placeholder="e.g., B-2026-0811">
       </div>
 
-      <div class="panel">
-        <h3>Waste Quantity Trend</h3>
-        <div class="chart-note" id="lineNote">Is waste going up or down over time, for the selected area / product?</div>
-        <div class="chart-box"><canvas id="lineCanvas"></canvas></div>
+      <div class="section-title">PRODUCT & STAGE</div>
+
+      <div class="form-group">
+        <label>Product / Material</label>
+        <input type="text" id="product" placeholder="e.g., Chocolate Halawa 250g" required>
       </div>
-    </section>
-  </main>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Stage</label>
+          <select id="stage" required>
+            <option value="">Select Stage</option>
+            <option>Raw Material</option>
+            <option>In Process</option>
+            <option>Finished Goods</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Waste Type</label>
+          <select id="wasteType" required>
+            <option value="">Select Waste Type</option>
+            <option>Damage</option>
+            <option>Expired</option>
+            <option>Overweight / Underweight</option>
+            <option>Spill / Process Loss</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Quantity / Weight (kg or units)</label>
+        <input type="number" id="quantity" step="0.01" placeholder="0.00" required>
+      </div>
+
+      <div class="form-group">
+        <label>Reason / Notes</label>
+        <textarea id="reason" rows="2" placeholder="Describe reason for waste..."></textarea>
+      </div>
+
+      <button type="submit" id="submitBtn" class="btn-submit">Submit Waste Record</button>
+    </form>
+  </div>
+
+  <!-- HISTORY LOG TAB -->
+  <div id="historyTab" style="display: none;">
+    <div class="section-title">RECORDS FROM GOOGLE SHEETS</div>
+    <div id="loadingStatus" class="loading">Loading data...</div>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Reported By</th>
+            <th>Product</th>
+            <th>Qty</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <script>
-/* ---------- Product catalogs linked to Area ---------- */
-const AREA_PRODUCTS = {
-  "Area 1": [
-    "Chocolate Halawa 250g","Chocolate Halawa 500g","Free Sugar Halawa 250g","Free Sugar Halawa 500g",
-    "Halawa 250g","Halawa 500g","Mwajaha Halawa 250g","Mwajaha Halawa 500g",
-    "pistachio Mix Halawa 250g","pistachio Mix Halawa 500g / Pistachio Halawa 500g",
-    "Halawa spread 25g x8","Halawa spread 30g x8","Halawa Bucket 2KG","Halawa Bucket 3KG",
-    "Halawa Pistachio 3KG","Halawa Special 3KG","Halawa Tin 4KG",
-    "L1 1000g X12","L1 250g X12","L1 250g X24","L1 350g X12","L1 500g X12","L1 500g X24",
-    "L2 1000g X12","L2 250g X12","L2 250g X24","L2 350g X12","L2 500g X12","L2 500g X24"
-  ],
-  "Area 2": [
-    "Al Baik tissue","M (Figs) 18g *16 new","M 40g * 12 (Wheat) Prm","M 18g * 16 SA (Wheat)",
-    "Maamoul 10g *18 P","Maamoul 10g *18 SA","Maamoul 10g *20 Premium","Maamoul 10g *20 Z",
-    "Maamoul 18g *16 Premium","Maamoul 18g *16 SA","Maamoul 18g *16 Z","Maamoul 18g X 16",
-    "Maamoul 32g *12 NEW","Maamoul 32g *12 SA","Maamoul 32g *12 SA Offer","Maamoul 32g *25 NEW",
-    "Maamoul 32g *25 new-2","Maamoul 32g* 12(Wheat) SA","Maamoul 32g *25 new","Maamoul 32gx12",
-    "Maamoul 40g *12 Premium","Maamoul 40g *12 Z","Maamoul 40g *12(Wheat) Z","Maamoul 40g *12(Wheat) Prm",
-    "Maamoul 40gx12","Maamoul 40gX12 NEW","Mamoul (Figs) 18g * 16 Z","Mamoul 10g X 20 h",
-    "Mamoul 18g * 16 Offer SA","Mamoul 18g X 16","Mamoul 25gX32","Mamoul 25gX32 NEW",
-    "Mamoul Al-Baik 10g * 220","Mamoul Box 10g X 20 old","Mamoul Box 18gX16 old","Mamoul Box 25gX32 old",
-    "Mamoul Box 32gX12 old","Mamoul Date 40g old","oldMamoul 40 gX12","oldMamoul Box 32gX12",
-    "oldMamoul Box 40gX12(1)","oldMamoul Box25gX32","oldMamoul Nutsigs 40gX12","oldMamoul Date&eat 40gX12"
-  ],
-  "Area 4": [
-    "Apricot Jam 30g X 16","Cheese 25g X 16","Honey 30g X 16","Orange Jam 30g X 16","Strawberry Jam 30g X 16",
-    "Black Olive 325g","Black Olive 650g","Black Olive Brine 240g","Blackstrap Molasses 450g","Blackstrap Molasses 900g",
-    "Green Olive 325g","Green Olive 325g (Hot)","Green Olive 650g","Green Olive 650g (Hot)",
-    "Green Olive Brine 240g","Green Olive Brine 240g H","Hot Sauce 375g","Hot Sauce 750g","TH Sauce Original 370g",
-    "Apricot 30g X100","Orange 30g X100","Strawberry 30g X100.",
-    "Apple 400 gm","Apricot 260 gm","Apricot 370 gm","Apricot 370 gm (Pcs)","Apricot 400 gm","Apricot 400 gm (Pcs)",
-    "Apricot 400 gm (SF)","Apricot 750 gm","Apricot 800 gm","Apricot 800 gm (Pcs)",
-    "Cherry 370 gm (Pcs)","Cherry 400 gm (Pcs)","Cherry 750 gm (Pcs)","Cherry 800 gm (Pcs)",
-    "Fig 370 gm","Fig 400 gm","Fig 800 gm",
-    "Mixed Fruit 260 gm","Mixed Fruit 400 gm","Mixed Fruit 800 gm","New Jimmy 410",
-    "Orange 400 gm","Orange 800 gm","Pineapple 400 gm","Pineapple 800 gm",
-    "Raspberry 260 gm","Raspberry 400 gm","Raspberry 800 gm",
-    "Strawberry 260 gm","Strawberry 370 gm","Strawberry 370 gm (Pcs)","Strawberry 400 gm","Strawberry 400 gm (Pcs)",
-    "Strawberry 400 gm (SF)","Strawberry 750 gm","Strawberry 750 gm (Pcs)","Strawberry 800 gm","Strawberry 800 gm (Pcs)"
-  ]
-};
+  // أدوِر واستبدل هذا الرابط بـ Web App URL الخاص بك من Google Apps Script
+  const SCRIPT_URL = 'ضع_رابط_GOOGLE_APPS_SCRIPT_هنا';
 
-const AREA_COLORS = {
-  "Area 1": "#CBA968", // sesame
-  "Area 2": "#B23B2E", // red
-  "Area 3": "#FFFFFF", // white
-  "Area 4": "#A6521C"  // burnt orange (maamoul)
-};
-const AREA_ORDER = ["Area 1","Area 2","Area 3","Area 4"];
+  // ضبط التاريخ والوقت تلقائياً عند الفتح
+  window.addEventListener('DOMContentLoaded', () => {
+    const now = new Date();
+    document.getElementById('date').value = now.toISOString().split('T')[0];
+    document.getElementById('time').value = now.toTimeString().split(' ')[0].substring(0,5);
+    fetchSheetHistory();
+  });
 
-/* ---------- Resilient storage layer ---------- */
-const memoryStore = {};
-let persistenceAvailable = true;
-
-async function storageGet(key, shared){
-  if(typeof window.storage !== 'undefined'){
-    try{ return await window.storage.get(key, shared); }
-    catch(e){ /* fall through */ }
-  }
-  return Object.prototype.hasOwnProperty.call(memoryStore, key)
-    ? { key, value: memoryStore[key], shared } : null;
-}
-async function storageSet(key, value, shared){
-  memoryStore[key] = value;
-  if(typeof window.storage !== 'undefined'){
-    try{
-      const res = await window.storage.set(key, value, shared);
-      if(res){ return true; }
-      persistenceAvailable = false;
-    }catch(e){ persistenceAvailable = false; }
-  } else { persistenceAvailable = false; }
-  return true;
-}
-
-const STORAGE_KEY = 'waste-log-records';
-const SHARED = true;
-let records = [];
-let pieChart, lineChart;
-
-function todayStr(){ return new Date().toISOString().slice(0,10); }
-function nowTime(){ return new Date().toTimeString().slice(0,5); }
-function escapeHtml(s){
-  if(!s) return '';
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
-/* ---------- Dynamic product field (form) ---------- */
-function renderProductField(area){
-  const container = document.getElementById('productFieldContainer');
-  if(AREA_PRODUCTS[area]){
-    const opts = AREA_PRODUCTS[area].map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
-    container.innerHTML = `<select id="f_product">${opts}</select>`;
-  } else {
-    container.innerHTML = `<input type="text" id="f_product" placeholder="Enter product / material name">`;
-  }
-}
-document.getElementById('f_area').addEventListener('change', (e)=> renderProductField(e.target.value));
-
-async function loadRecords(){
-  const res = await storageGet(STORAGE_KEY, SHARED);
-  records = res ? JSON.parse(res.value) : [];
-  renderAll();
-}
-async function saveRecords(){
-  return await storageSet(STORAGE_KEY, JSON.stringify(records), SHARED);
-}
-function initForm(){
-  document.getElementById('f_date').value = todayStr();
-  document.getElementById('f_time').value = nowTime();
-  renderProductField(document.getElementById('f_area').value);
-}
-
-document.getElementById('saveBtn').addEventListener('click', async ()=>{
-  const productEl = document.getElementById('f_product');
-  const rec = {
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-    date: document.getElementById('f_date').value || todayStr(),
-    time: document.getElementById('f_time').value || nowTime(),
-    shift: document.getElementById('f_shift').value,
-    reporter: document.getElementById('f_reporter').value.trim(),
-    area: document.getElementById('f_area').value,
-    batch: document.getElementById('f_batch').value.trim(),
-    product: productEl ? productEl.value.trim() : '',
-    stage: document.getElementById('f_stage').value,
-    type: document.getElementById('f_type').value,
-    qty: parseFloat(document.getElementById('f_qty').value) || 0,
-    unit: document.getElementById('f_unit').value,
-    cost: parseFloat(document.getElementById('f_cost').value) || 0,
-    cause: document.getElementById('f_cause').value,
-    details: document.getElementById('f_details').value.trim(),
-    action: document.getElementById('f_action').value,
-    status: document.getElementById('f_status').value,
-    createdAt: new Date().toISOString()
-  };
-
-  const msg = document.getElementById('saveMsg');
-  if(!rec.product){
-    msg.className = 'save-msg err';
-    msg.textContent = 'Please enter a product or material name.';
-    return;
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    if(tab === 'add') {
+      document.querySelectorAll('.tab-btn')[0].classList.add('active');
+      document.getElementById('addTab').style.display = 'block';
+      document.getElementById('historyTab').style.display = 'none';
+    } else {
+      document.querySelectorAll('.tab-btn')[1].classList.add('active');
+      document.getElementById('addTab').style.display = 'none';
+      document.getElementById('historyTab').style.display = 'block';
+      fetchSheetHistory();
+    }
   }
 
-  const btn = document.getElementById('saveBtn');
-  btn.disabled = true; btn.textContent = 'Saving...';
+  function fetchSheetHistory() {
+    const loading = document.getElementById('loadingStatus');
+    const tbody = document.getElementById('historyBody');
+    loading.style.display = 'block';
 
-  records.unshift(rec);
-  await saveRecords();
+    fetch(SCRIPT_URL)
+      .then(res => res.json())
+      .then(data => {
+        loading.style.display = 'none';
+        tbody.innerHTML = '';
+        
+        // عرض السجلات المجلوبة
+        data.reverse().forEach(row => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${row['Date'] || row['date'] || '-'}</td>
+            <td>${row['Reported By'] || row['reportedBy'] || '-'}</td>
+            <td>${row['Product'] || row['product'] || '-'}</td>
+            <td>${row['Quantity'] || row['quantity'] || '-'}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      })
+      .catch(err => {
+        loading.innerText = 'Unable to fetch records from Google Sheets.';
+        console.error(err);
+      });
+  }
 
-  // إرسال البيانات إلى Google Sheets
-  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyc-i13hg9DVrQw3fQXBABVqF-N6AZGIoZe4RdzL5S3V2Mru7fgPEaLoCVFEfU4i8nNYQ/exec';
-  try {
-    fetch(WEB_APP_URL, {
+  // إرسال النموذج إلى Google Sheets
+  document.getElementById('wasteForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.innerText = 'Submitting...';
+
+    const payload = {
+      date: document.getElementById('date').value,
+      time: document.getElementById('time').value,
+      shift: document.getElementById('shift').value,
+      reportedBy: document.getElementById('reportedBy').value,
+      area: document.getElementById('area').value,
+      batch: document.getElementById('batch').value,
+      product: document.getElementById('product').value,
+      stage: document.getElementById('stage').value,
+      wasteType: document.getElementById('wasteType').value,
+      quantity: document.getElementById('quantity').value,
+      reason: document.getElementById('reason').value
+    };
+
+    fetch(SCRIPT_URL, {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(rec)
+      body: JSON.stringify(payload)
+    }).then(() => {
+      alert('Waste record saved successfully!');
+      document.getElementById('wasteForm').reset();
+      
+      // إعادة ملء الوقت والتاريخ
+      const now = new Date();
+      document.getElementById('date').value = now.toISOString().split('T')[0];
+      document.getElementById('time').value = now.toTimeString().split(' ')[0].substring(0,5);
+
+      btn.disabled = false;
+      btn.innerText = 'Submit Waste Record';
+    }).catch(err => {
+      alert('Error saving record');
+      btn.disabled = false;
+      btn.innerText = 'Submit Waste Record';
     });
-  } catch (err) {
-    console.error('Error sending to Google Sheets:', err);
-  }
-
-  btn.disabled = false; btn.textContent = '+ Add';
-  msg.className = 'save-msg ok';
-  msg.textContent = 'Record saved and sent to Google Sheets!';
-
-  document.getElementById('f_batch').value='';
-  document.getElementById('f_qty').value='';
-  document.getElementById('f_cost').value='';
-  document.getElementById('f_details').value='';
-  initForm();
-  renderAll();
-
-  setTimeout(()=>{ msg.textContent=''; }, 4500);
-});
-
-/* ---------- Header stats ---------- */
-function isThisMonth(dateStr){
-  const d = new Date(dateStr);
-  const now = new Date();
-  return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
-}
-
-function renderStats(){
-  const monthRecs = records.filter(r => isThisMonth(r.date));
-
-  const areaCost = {};
-  monthRecs.forEach(r=>{ const a=r.area||'Unspecified'; areaCost[a]=(areaCost[a]||0)+(r.cost||0); });
-  const areaEntries = Object.entries(areaCost).sort((a,b)=>b[1]-a[1]);
-
-  const productCost = {};
-  monthRecs.forEach(r=>{ if(r.product){ productCost[r.product]=(productCost[r.product]||0)+(r.cost||0); } });
-  const productEntries = Object.entries(productCost).sort((a,b)=>b[1]-a[1]);
-
-  document.getElementById('statTopArea').textContent = areaEntries.length ? areaEntries[0][0] : '—';
-  document.getElementById('statTopAreaCost').textContent = areaEntries.length ? areaEntries[0][1].toLocaleString('en-US',{maximumFractionDigits:0}) : '—';
-  document.getElementById('statTopProduct').textContent = productEntries.length ? productEntries[0][0] : '—';
-}
-
-/* ---------- Shared filter helpers ---------- */
-function getProductOptionsForArea(area){
-  if(area && AREA_PRODUCTS[area]) return AREA_PRODUCTS[area];
-  if(area === 'Area 3'){
-    return [...new Set(records.filter(r=>r.area==='Area 3').map(r=>r.product).filter(Boolean))];
-  }
-  return [...AREA_PRODUCTS['Area 1'], ...AREA_PRODUCTS['Area 2'], ...AREA_PRODUCTS['Area 4']];
-}
-
-function populateProductFilter(selectEl, area){
-  const products = getProductOptionsForArea(area);
-  const cur = selectEl.value;
-  selectEl.innerHTML = '<option value="">All Products</option>' + products.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
-  selectEl.value = products.includes(cur) ? cur : '';
-}
-
-function applyFilters(list, area, product, dateFrom, dateTo){
-  return list.filter(r=>{
-    if(area && r.area!==area) return false;
-    if(product && r.product!==product) return false;
-    if(dateFrom && r.date < dateFrom) return false;
-    if(dateTo && r.date > dateTo) return false;
-    return true;
   });
-}
-
-/* ---------- History ---------- */
-function renderHistory(){
-  const area = document.getElementById('filterArea').value;
-  populateProductFilter(document.getElementById('filterProduct'), area);
-  const product = document.getElementById('filterProduct').value;
-  const dateFrom = document.getElementById('filterDateFrom').value;
-  const dateTo = document.getElementById('filterDateTo').value;
-
-  const list = applyFilters(records, area, product, dateFrom, dateTo);
-  const container = document.getElementById('historyList');
-  if(list.length === 0){
-    container.innerHTML = '<div class="empty">No records match these filters.<br>Add an entry from the + Add Waste tab.</div>';
-    return;
-  }
-  container.innerHTML = list.map(r => `
-    <div class="ticket">
-      <div class="t-head">
-        <div>
-          <div class="t-title">${escapeHtml(r.product)}</div>
-          <div class="t-date">${r.date} · ${r.time} · ${escapeHtml(r.shift||'')}</div>
-        </div>
-        <div class="t-cost">${r.cost ? r.cost.toLocaleString('en-US')+' SAR' : ''}</div>
-      </div>
-      <div class="t-tags">
-        <span class="tag">${escapeHtml(r.area||'—')}</span>
-        <span class="tag">${escapeHtml(r.stage)}</span>
-        <span class="tag">${escapeHtml(r.type)}</span>
-        ${r.qty ? `<span class="tag">${escapeHtml(r.qty)} ${escapeHtml(r.unit)}</span>` : ''}
-        <span class="tag ${r.status==='Resolved'?'status-done':'status-open'}">${escapeHtml(r.status)}</span>
-      </div>
-      <div class="t-cause"><strong>Cause:</strong> ${escapeHtml(r.cause)}${r.details ? ' — ' + escapeHtml(r.details) : ''}</div>
-      <div class="t-meta">${r.batch ? 'Batch: '+escapeHtml(r.batch)+' · ' : ''}${r.reporter ? 'Reported by: '+escapeHtml(r.reporter) : ''}</div>
-    </div>
-  `).join('');
-}
-
-/* ---------- Analyze ---------- */
-function initCharts(){
-  if(typeof Chart === 'undefined') return;
-  const pieCtx = document.getElementById('pieCanvas').getContext('2d');
-  pieChart = new Chart(pieCtx, {
-    type:'pie',
-    data:{ labels:AREA_ORDER, datasets:[{ data:[0,0,0,0], backgroundColor:AREA_ORDER.map(a=>AREA_COLORS[a]), borderColor:'#163C1B', borderWidth:1.5 }] },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:12, font:{ size:11 } } } } }
-  });
-
-  const lineCtx = document.getElementById('lineCanvas').getContext('2d');
-  lineChart = new Chart(lineCtx, {
-    type:'line',
-    data:{ labels:[], datasets:[{ label:'Waste Quantity', data:[], borderColor:'#2C6E2E', backgroundColor:'rgba(44,110,46,0.12)', fill:true, tension:.3, pointRadius:3, pointBackgroundColor:'#2C6E2E' }] },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } }
-  });
-}
-
-function hexToRgb(hex){
-  const h = hex.replace('#','');
-  return { r: parseInt(h.substring(0,2),16), g: parseInt(h.substring(2,4),16), b: parseInt(h.substring(4,6),16) };
-}
-function rgbToHex(r,g,b){
-  return '#' + [r,g,b].map(v=>Math.max(0,Math.min(255,v)).toString(16).padStart(2,'0')).join('');
-}
-function mixWithWhite(hex, ratio){
-  const {r,g,b} = hexToRgb(hex);
-  return rgbToHex(
-    Math.round(r + (255-r)*ratio),
-    Math.round(g + (255-g)*ratio),
-    Math.round(b + (255-b)*ratio)
-  );
-}
-function shadesForArea(area, n){
-  if(area === 'Area 3'){
-    const palette = ['#2C6E2E','#3E8B3B','#6FA83A','#8FBF6B','#A9D492','#C7E3B9','#1F5423','#163C1B','#4A7A46'];
-    return Array.from({length:n}, (_,i)=>palette[i % palette.length]);
-  }
-  const base = AREA_COLORS[area] || '#3E8B3B';
-  return Array.from({length:n}, (_,i)=> mixWithWhite(base, n<=1 ? 0 : (i/(n-1))*0.55));
-}
-
-function computePieData(area, product, dateFrom, dateTo){
-  if(!area){
-    const base = applyFilters(records, '', product, dateFrom, dateTo);
-    const data = AREA_ORDER.map(a => base.filter(r=>r.area===a).reduce((s,r)=>s+(r.cost||0),0));
-    return { labels: AREA_ORDER, data, colors: AREA_ORDER.map(a=>AREA_COLORS[a]) };
-  }
-  const base = applyFilters(records, area, product, dateFrom, dateTo);
-  const costByProduct = {};
-  base.forEach(r=>{ const p = r.product || 'Unspecified'; costByProduct[p] = (costByProduct[p]||0) + (r.cost||0); });
-  let entries = Object.entries(costByProduct).sort((a,b)=>b[1]-a[1]);
-  if(entries.length > 8){
-    const top = entries.slice(0,8);
-    const otherSum = entries.slice(8).reduce((s,e)=>s+e[1],0);
-    entries = [...top, ['Other', otherSum]];
-  }
-  if(entries.length === 0){ entries = [['No data', 0]]; }
-  return { labels: entries.map(e=>e[0]), data: entries.map(e=>e[1]), colors: shadesForArea(area, entries.length) };
-}
-
-function getBucketUnit(start, end){
-  const days = (end-start)/(1000*60*60*24);
-  if(days<=31) return 'day';
-  if(days<=180) return 'week';
-  return 'month';
-}
-function buildBuckets(start, end, unit){
-  const buckets = [];
-  let cur = new Date(start);
-  while(cur < end){
-    let next = new Date(cur);
-    let label = '';
-    if(unit==='day'){ next.setDate(cur.getDate()+1); label = cur.toLocaleDateString('en-US',{month:'short', day:'numeric'}); }
-    else if(unit==='week'){ next.setDate(cur.getDate()+7); label = cur.toLocaleDateString('en-US',{month:'short', day:'numeric'}); }
-    else { next = new Date(cur.getFullYear(), cur.getMonth()+1, 1); label = cur.toLocaleDateString('en-US',{month:'short'}); }
-    buckets.push({ start:new Date(cur), end: next < end ? next : end, label });
-    cur = next;
-  }
-  return buckets;
-}
-
-function renderDashboard(){
-  const area = document.getElementById('aFilterArea').value;
-  populateProductFilter(document.getElementById('aFilterProduct'), area);
-  const product = document.getElementById('aFilterProduct').value;
-  const dateFrom = document.getElementById('aFilterDateFrom').value;
-  const dateTo = document.getElementById('aFilterDateTo').value;
-
-  // --- Pie chart ---
-  const pieData = computePieData(area, product, dateFrom, dateTo);
-  if(pieChart){
-    pieChart.data.labels = pieData.labels;
-    pieChart.data.datasets[0].data = pieData.data;
-    pieChart.data.datasets[0].backgroundColor = pieData.colors;
-    pieChart.update();
-  }
-  document.getElementById('pieNote').textContent = area
-    ? `Products within ${area}, ranked by estimated cost (SAR).`
-    : 'All areas, ranked by estimated cost (SAR) — largest slice is the costliest.';
-
-  // --- Line chart: waste quantity trend ---
-  let start, end;
-  if(dateFrom && dateTo){
-    start = new Date(dateFrom); start.setHours(0,0,0,0);
-    end = new Date(dateTo); end.setHours(0,0,0,0); end.setDate(end.getDate()+1);
-  } else {
-    end = new Date(); end.setHours(0,0,0,0); end.setDate(end.getDate()+1);
-    start = new Date(end); start.setDate(start.getDate()-30);
-  }
-  const unit = getBucketUnit(start, end);
-  const buckets = buildBuckets(start, end, unit);
-  const lineBase = applyFilters(records, area, product, null, null);
-  const qtyPerBucket = buckets.map(b => lineBase.filter(r=>{
-    const d = new Date(r.date);
-    return d >= b.start && d < b.end;
-  }).reduce((s,r)=> s + (parseFloat(r.qty)||0), 0));
-
-  if(lineChart){
-    lineChart.data.labels = buckets.map(b=>b.label);
-    lineChart.data.datasets[0].data = qtyPerBucket;
-    lineChart.update();
-  }
-
-  const scopeLabel = (area||'All Areas') + (product ? ' · ' + product : '');
-  document.getElementById('lineNote').textContent = `Waste quantity over time for: ${scopeLabel}. Rising bars mean waste is increasing.`;
-}
-
-function renderAll(){
-  renderStats();
-  renderHistory();
-  renderDashboard();
-}
-
-document.getElementById('filterArea').addEventListener('change', renderHistory);
-document.getElementById('filterProduct').addEventListener('change', renderHistory);
-document.getElementById('filterDateFrom').addEventListener('change', renderHistory);
-document.getElementById('filterDateTo').addEventListener('change', renderHistory);
-
-document.getElementById('aFilterArea').addEventListener('change', renderDashboard);
-document.getElementById('aFilterProduct').addEventListener('change', renderDashboard);
-document.getElementById('aFilterDateFrom').addEventListener('change', renderDashboard);
-document.getElementById('aFilterDateTo').addEventListener('change', renderDashboard);
-
-document.querySelectorAll('nav.tabs button').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('main > section').forEach(s=>s.classList.add('hidden'));
-    document.getElementById('tab-'+btn.dataset.tab).classList.remove('hidden');
-    if(btn.dataset.tab === 'dashboard' && pieChart && lineChart){
-      requestAnimationFrame(()=>{ pieChart.resize(); lineChart.resize(); });
-    }
-  });
-});
-
-initForm();
-initCharts();
-loadRecords();
 </script>
+
 </body>
 </html>
