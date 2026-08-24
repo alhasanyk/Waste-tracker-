@@ -103,7 +103,7 @@
   .save-msg.ok{ color:var(--green-700); }
   .save-msg.err{ color:var(--red); }
 
-  /* Filters (shared style for History & Analyze) */
+  /* Filters */
   .filter-panel{
     border:1.5px solid var(--green-600); border-radius:10px; padding:12px; margin-bottom:16px; background:var(--green-100);
   }
@@ -301,7 +301,6 @@
 <script>
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyc-i13hg9DVrQw3fQXBABVqF-N6AZGIoZe4RdzL5S3V2Mru7fgPEaLoCVFEfU4i8nNYQ/exec';
 
-/* ---------- Product catalogs linked to Area ---------- */
 const AREA_PRODUCTS = {
   "Area 1": [
     "Chocolate Halawa 250g","Chocolate Halawa 500g","Free Sugar Halawa 250g","Free Sugar Halawa 500g",
@@ -343,12 +342,7 @@ const AREA_PRODUCTS = {
   ]
 };
 
-const AREA_COLORS = {
-  "Area 1": "#CBA968",
-  "Area 2": "#B23B2E",
-  "Area 3": "#FFFFFF",
-  "Area 4": "#A6521C"
-};
+const AREA_COLORS = { "Area 1": "#CBA968", "Area 2": "#B23B2E", "Area 3": "#FFFFFF", "Area 4": "#A6521C" };
 const AREA_ORDER = ["Area 1","Area 2","Area 3","Area 4"];
 
 let records = [];
@@ -361,7 +355,6 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-/* ---------- Dynamic product field (form) ---------- */
 function renderProductField(area){
   const container = document.getElementById('productFieldContainer');
   if(AREA_PRODUCTS[area]){
@@ -373,35 +366,58 @@ function renderProductField(area){
 }
 document.getElementById('f_area').addEventListener('change', (e)=> renderProductField(e.target.value));
 
-/* ---------- Fetch data from Google Sheets ---------- */
+/* ---------- Fetch Data with Index-Array Support ---------- */
 async function loadRecords(){
   try {
     const response = await fetch(WEB_APP_URL, { redirect: 'follow' });
-    const textData = await response.text();
-    const data = JSON.parse(textData);
+    const data = await response.json();
     
     if (Array.isArray(data)) {
-      records = data.map(item => ({
-        date: item.date || item.Date || todayStr(),
-        time: item.time || item.Time || '',
-        shift: item.shift || item.Shift || '',
-        reporter: item.reporter || item['Reported By'] || item.reportedBy || '',
-        area: item.area || item.Area || '',
-        batch: item.batch || item.Batch || '',
-        product: item.product || item.Product || '',
-        stage: item.stage || item.Stage || '',
-        type: item.type || item['Waste Type'] || item.wasteType || '',
-        qty: parseFloat(item.qty || item.quantity || item.Quantity) || 0,
-        unit: item.unit || item.Unit || 'kg',
-        cost: parseFloat(item.cost || item.Cost) || 0,
-        cause: item.cause || item['Root Cause'] || item.reason || '',
-        details: item.details || item.Details || '',
-        action: item.action || item.Action || '',
-        status: item.status || item.Status || 'Resolved'
-      }));
+      records = data.map(item => {
+        // If Google Sheet returns arrays (no header row in Sheet)
+        if (Array.isArray(item)) {
+          return {
+            date: item[1] || todayStr(),
+            time: item[2] || '',
+            shift: item[3] || '',
+            reporter: item[4] || '',
+            area: item[5] || '',
+            batch: item[6] || '',
+            product: item[7] || '',
+            stage: item[8] || '',
+            type: item[9] || '',
+            qty: parseFloat(item[10]) || 0,
+            unit: item[11] || 'kg',
+            cost: parseFloat(item[12]) || 0,
+            cause: item[13] || '',
+            details: item[14] || '',
+            action: item[15] || '',
+            status: item[16] || 'Resolved'
+          };
+        }
+        // If Google Sheet returns key-value objects
+        return {
+          date: item.date || item.Date || todayStr(),
+          time: item.time || item.Time || '',
+          shift: item.shift || item.Shift || '',
+          reporter: item.reporter || item['Reported By'] || item.reportedBy || '',
+          area: item.area || item.Area || '',
+          batch: item.batch || item.Batch || '',
+          product: item.product || item.Product || '',
+          stage: item.stage || item.Stage || '',
+          type: item.type || item['Waste Type'] || item.wasteType || '',
+          qty: parseFloat(item.qty || item.quantity || item.Quantity) || 0,
+          unit: item.unit || item.Unit || 'kg',
+          cost: parseFloat(item.cost || item.Cost) || 0,
+          cause: item.cause || item['Root Cause'] || item.reason || '',
+          details: item.details || item.Details || '',
+          action: item.action || item.Action || '',
+          status: item.status || item.Status || 'Resolved'
+        };
+      });
     }
   } catch (e) {
-    console.error("Could not fetch records from Google Sheets", e);
+    console.error("Error reading Google Sheets", e);
   }
   renderAll();
 }
@@ -438,14 +454,13 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   const msg = document.getElementById('saveMsg');
   if(!rec.product){
     msg.className = 'save-msg err';
-    msg.textContent = 'Please enter a product or material name.';
+    msg.textContent = 'Please enter a product name.';
     return;
   }
 
   const btn = document.getElementById('saveBtn');
   btn.disabled = true; btn.textContent = 'Saving...';
 
-  // Send data using text/plain to bypass CORS preflight restrictions in Google Apps Script
   try {
     await fetch(WEB_APP_URL, {
       method: 'POST',
@@ -455,16 +470,15 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
     });
     records.unshift(rec);
     msg.className = 'save-msg ok';
-    msg.textContent = 'Record saved and sent to Google Sheets!';
+    msg.textContent = 'Record saved successfully!';
   } catch (err) {
-    console.error('Error sending to Google Sheets:', err);
-    records.unshift(rec); // Local fallback
+    console.error('Save error:', err);
+    records.unshift(rec);
     msg.className = 'save-msg ok';
-    msg.textContent = 'Saved locally (Network error sending to Google Sheets)';
+    msg.textContent = 'Saved locally.';
   }
 
   btn.disabled = false; btn.textContent = '+ Add';
-
   document.getElementById('f_batch').value='';
   document.getElementById('f_qty').value='';
   document.getElementById('f_cost').value='';
@@ -472,10 +486,9 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   initForm();
   renderAll();
 
-  setTimeout(()=>{ msg.textContent=''; }, 4500);
+  setTimeout(()=>{ msg.textContent=''; }, 4000);
 });
 
-/* ---------- Header stats ---------- */
 function isThisMonth(dateStr){
   const d = new Date(dateStr);
   const now = new Date();
@@ -484,7 +497,6 @@ function isThisMonth(dateStr){
 
 function renderStats(){
   const monthRecs = records.filter(r => isThisMonth(r.date));
-
   const areaCost = {};
   monthRecs.forEach(r=>{ const a=r.area||'Unspecified'; areaCost[a]=(areaCost[a]||0)+(r.cost||0); });
   const areaEntries = Object.entries(areaCost).sort((a,b)=>b[1]-a[1]);
@@ -498,7 +510,6 @@ function renderStats(){
   document.getElementById('statTopProduct').textContent = productEntries.length ? productEntries[0][0] : '—';
 }
 
-/* ---------- Shared filter helpers ---------- */
 function getProductOptionsForArea(area){
   if(area && AREA_PRODUCTS[area]) return AREA_PRODUCTS[area];
   if(area === 'Area 3'){
@@ -524,7 +535,6 @@ function applyFilters(list, area, product, dateFrom, dateTo){
   });
 }
 
-/* ---------- History ---------- */
 function renderHistory(){
   const area = document.getElementById('filterArea').value;
   populateProductFilter(document.getElementById('filterProduct'), area);
@@ -535,7 +545,7 @@ function renderHistory(){
   const list = applyFilters(records, area, product, dateFrom, dateTo);
   const container = document.getElementById('historyList');
   if(list.length === 0){
-    container.innerHTML = '<div class="empty">No records match these filters.<br>Add an entry from the + Add Waste tab.</div>';
+    container.innerHTML = '<div class="empty">No records found.</div>';
     return;
   }
   container.innerHTML = list.map(r => `
@@ -560,7 +570,6 @@ function renderHistory(){
   `).join('');
 }
 
-/* ---------- Analyze ---------- */
 function initCharts(){
   if(typeof Chart === 'undefined') return;
   const pieCtx = document.getElementById('pieCanvas').getContext('2d');
@@ -649,7 +658,6 @@ function renderDashboard(){
   const dateFrom = document.getElementById('aFilterDateFrom').value;
   const dateTo = document.getElementById('aFilterDateTo').value;
 
-  // --- Pie chart ---
   const pieData = computePieData(area, product, dateFrom, dateTo);
   if(pieChart){
     pieChart.data.labels = pieData.labels;
@@ -657,11 +665,7 @@ function renderDashboard(){
     pieChart.data.datasets[0].backgroundColor = pieData.colors;
     pieChart.update();
   }
-  document.getElementById('pieNote').textContent = area
-    ? `Products within ${area}, ranked by estimated cost (SAR).`
-    : 'All areas, ranked by estimated cost (SAR) — largest slice is the costliest.';
 
-  // --- Line chart: waste quantity trend ---
   let start, end;
   if(dateFrom && dateTo){
     start = new Date(dateFrom); start.setHours(0,0,0,0);
@@ -683,9 +687,6 @@ function renderDashboard(){
     lineChart.data.datasets[0].data = qtyPerBucket;
     lineChart.update();
   }
-
-  const scopeLabel = (area||'All Areas') + (product ? ' · ' + product : '');
-  document.getElementById('lineNote').textContent = `Waste quantity over time for: ${scopeLabel}. Rising bars mean waste is increasing.`;
 }
 
 function renderAll(){
