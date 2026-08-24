@@ -382,14 +382,14 @@ function renderProductField(area){
 }
 document.getElementById('f_area').addEventListener('change', (e)=> renderProductField(e.target.value));
 
-/* ---------- Fetch Data with Index-Array Support & Fix Reporter ---------- */
+/* ---------- Fetch Data & Reverse to Show Newest First ---------- */
 async function loadRecords(){
   try {
     const response = await fetch(WEB_APP_URL, { redirect: 'follow' });
     const data = await response.json();
     
     if (Array.isArray(data)) {
-      records = data.map(item => {
+      let rawRecords = data.map(item => {
         if (Array.isArray(item)) {
           return {
             date: cleanDate(item[1]),
@@ -429,6 +429,9 @@ async function loadRecords(){
           status: item.status || item.Status || 'Resolved'
         };
       });
+      
+      // عكس الترتيب ليصبح الأحدث فوق والأقدم تحت
+      records = rawRecords.reverse();
     }
   } catch (e) {
     console.error("Error reading Google Sheets", e);
