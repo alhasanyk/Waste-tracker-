@@ -29,6 +29,7 @@
   }
   .shell{ max-width:520px; margin:0 auto; min-height:100vh; background:var(--white); display:flex; flex-direction:column;}
 
+  /* Header */
   header{
     padding:20px 20px 16px;
     color:var(--ink);
@@ -55,6 +56,7 @@
   .stat .num.text{ font-size:12px; }
   .stat .lbl{ font-size:9px; color:var(--muted); margin-top:4px; letter-spacing:.03em; }
 
+  /* Tabs */
   nav.tabs{
     display:flex; gap:6px; padding:14px 20px 12px; background:var(--white);
   }
@@ -67,6 +69,7 @@
 
   main{ flex:1; background:var(--white); padding:6px 16px 100px;}
 
+  /* Panels */
   .panel{
     background:var(--white); border:1.5px solid var(--line); border-radius:12px;
     padding:16px 16px 6px; margin-bottom:16px;
@@ -100,6 +103,7 @@
   .save-msg.ok{ color:var(--green-700); }
   .save-msg.err{ color:var(--red); }
 
+  /* Filters (shared style for History & Analyze) */
   .filter-panel{
     border:1.5px solid var(--green-600); border-radius:10px; padding:12px; margin-bottom:16px; background:var(--green-100);
   }
@@ -295,8 +299,9 @@
 </div>
 
 <script>
-const WEB_APP_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL';
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyc-i13hg9DVrQw3fQXBABVqF-N6AZGIoZe4RdzL5S3V2Mru7fgPEaLoCVFEfU4i8nNYQ/exec';
 
+/* ---------- Product catalogs linked to Area ---------- */
 const AREA_PRODUCTS = {
   "Area 1": [
     "Chocolate Halawa 250g","Chocolate Halawa 500g","Free Sugar Halawa 250g","Free Sugar Halawa 500g",
@@ -356,6 +361,7 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+/* ---------- Dynamic product field (form) ---------- */
 function renderProductField(area){
   const container = document.getElementById('productFieldContainer');
   if(AREA_PRODUCTS[area]){
@@ -367,6 +373,7 @@ function renderProductField(area){
 }
 document.getElementById('f_area').addEventListener('change', (e)=> renderProductField(e.target.value));
 
+/* ---------- Fetch data from Google Sheets ---------- */
 async function loadRecords(){
   try {
     const response = await fetch(WEB_APP_URL);
@@ -376,16 +383,16 @@ async function loadRecords(){
         date: item.date || item.Date || todayStr(),
         time: item.time || item.Time || '',
         shift: item.shift || item.Shift || '',
-        reporter: item.reporter || item['reported by'] || item['Reported By'] || '',
+        reporter: item.reporter || item['Reported By'] || item.reportedBy || '',
         area: item.area || item.Area || '',
         batch: item.batch || item.Batch || '',
         product: item.product || item.Product || '',
         stage: item.stage || item.Stage || '',
-        type: item.type || item['waste type'] || item['Waste Type'] || '',
+        type: item.type || item['Waste Type'] || item.wasteType || '',
         qty: parseFloat(item.qty || item.quantity || item.Quantity) || 0,
         unit: item.unit || item.Unit || 'kg',
         cost: parseFloat(item.cost || item.Cost) || 0,
-        cause: item.cause || item['root cause'] || item['Root Cause'] || '',
+        cause: item.cause || item['Root Cause'] || item.reason || '',
         details: item.details || item.Details || '',
         action: item.action || item.Action || '',
         status: item.status || item.Status || 'Resolved'
@@ -436,6 +443,7 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   const btn = document.getElementById('saveBtn');
   btn.disabled = true; btn.textContent = 'Saving...';
 
+  // Send data to Google Sheets
   try {
     await fetch(WEB_APP_URL, {
       method: 'POST',
@@ -450,7 +458,7 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
 
   btn.disabled = false; btn.textContent = '+ Add';
   msg.className = 'save-msg ok';
-  msg.textContent = 'Record saved successfully!';
+  msg.textContent = 'Record saved and sent to Google Sheets!';
 
   document.getElementById('f_batch').value='';
   document.getElementById('f_qty').value='';
@@ -462,6 +470,7 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   setTimeout(()=>{ msg.textContent=''; }, 4500);
 });
 
+/* ---------- Header stats ---------- */
 function isThisMonth(dateStr){
   const d = new Date(dateStr);
   const now = new Date();
@@ -484,6 +493,7 @@ function renderStats(){
   document.getElementById('statTopProduct').textContent = productEntries.length ? productEntries[0][0] : '—';
 }
 
+/* ---------- Shared filter helpers ---------- */
 function getProductOptionsForArea(area){
   if(area && AREA_PRODUCTS[area]) return AREA_PRODUCTS[area];
   if(area === 'Area 3'){
@@ -509,6 +519,7 @@ function applyFilters(list, area, product, dateFrom, dateTo){
   });
 }
 
+/* ---------- History ---------- */
 function renderHistory(){
   const area = document.getElementById('filterArea').value;
   populateProductFilter(document.getElementById('filterProduct'), area);
@@ -519,7 +530,7 @@ function renderHistory(){
   const list = applyFilters(records, area, product, dateFrom, dateTo);
   const container = document.getElementById('historyList');
   if(list.length === 0){
-    container.innerHTML = '<div class="empty">No records found.</div>';
+    container.innerHTML = '<div class="empty">No records match these filters.<br>Add an entry from the + Add Waste tab.</div>';
     return;
   }
   container.innerHTML = list.map(r => `
@@ -544,6 +555,7 @@ function renderHistory(){
   `).join('');
 }
 
+/* ---------- Analyze ---------- */
 function initCharts(){
   if(typeof Chart === 'undefined') return;
   const pieCtx = document.getElementById('pieCanvas').getContext('2d');
@@ -632,6 +644,7 @@ function renderDashboard(){
   const dateFrom = document.getElementById('aFilterDateFrom').value;
   const dateTo = document.getElementById('aFilterDateTo').value;
 
+  // --- Pie chart ---
   const pieData = computePieData(area, product, dateFrom, dateTo);
   if(pieChart){
     pieChart.data.labels = pieData.labels;
@@ -643,6 +656,7 @@ function renderDashboard(){
     ? `Products within ${area}, ranked by estimated cost (SAR).`
     : 'All areas, ranked by estimated cost (SAR) — largest slice is the costliest.';
 
+  // --- Line chart: waste quantity trend ---
   let start, end;
   if(dateFrom && dateTo){
     start = new Date(dateFrom); start.setHours(0,0,0,0);
@@ -666,7 +680,7 @@ function renderDashboard(){
   }
 
   const scopeLabel = (area||'All Areas') + (product ? ' · ' + product : '');
-  document.getElementById('lineNote').textContent = `Waste quantity over time for: ${scopeLabel}.`;
+  document.getElementById('lineNote').textContent = `Waste quantity over time for: ${scopeLabel}. Rising bars mean waste is increasing.`;
 }
 
 function renderAll(){
