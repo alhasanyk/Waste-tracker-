@@ -355,6 +355,22 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+function cleanDate(val){
+  if(!val) return todayStr();
+  let str = String(val);
+  return str.includes('T') ? str.split('T')[0] : str;
+}
+
+function cleanTime(val){
+  if(!val) return '';
+  let str = String(val);
+  if(str.includes('T')) {
+    let t = str.split('T')[1];
+    return t ? t.slice(0,5) : '';
+  }
+  return str;
+}
+
 function renderProductField(area){
   const container = document.getElementById('productFieldContainer');
   if(AREA_PRODUCTS[area]){
@@ -366,7 +382,7 @@ function renderProductField(area){
 }
 document.getElementById('f_area').addEventListener('change', (e)=> renderProductField(e.target.value));
 
-/* ---------- Fetch Data with Index-Array Support ---------- */
+/* ---------- Fetch Data with Index-Array Support & Fix Reporter ---------- */
 async function loadRecords(){
   try {
     const response = await fetch(WEB_APP_URL, { redirect: 'follow' });
@@ -374,11 +390,10 @@ async function loadRecords(){
     
     if (Array.isArray(data)) {
       records = data.map(item => {
-        // If Google Sheet returns arrays (no header row in Sheet)
         if (Array.isArray(item)) {
           return {
-            date: item[1] || todayStr(),
-            time: item[2] || '',
+            date: cleanDate(item[1]),
+            time: cleanTime(item[2]),
             shift: item[3] || '',
             reporter: item[4] || '',
             area: item[5] || '',
@@ -395,12 +410,11 @@ async function loadRecords(){
             status: item[16] || 'Resolved'
           };
         }
-        // If Google Sheet returns key-value objects
         return {
-          date: item.date || item.Date || todayStr(),
-          time: item.time || item.Time || '',
+          date: cleanDate(item.date || item.Date),
+          time: cleanTime(item.time || item.Time),
           shift: item.shift || item.Shift || '',
-          reporter: item.reporter || item['Reported By'] || item.reportedBy || '',
+          reporter: item.reporter || item['Reported By'] || item.reportedBy || item.Reporter || '',
           area: item.area || item.Area || '',
           batch: item.batch || item.Batch || '',
           product: item.product || item.Product || '',
@@ -565,7 +579,7 @@ function renderHistory(){
         <span class="tag ${r.status==='Resolved'?'status-done':'status-open'}">${escapeHtml(r.status)}</span>
       </div>
       <div class="t-cause"><strong>Cause:</strong> ${escapeHtml(r.cause)}${r.details ? ' — ' + escapeHtml(r.details) : ''}</div>
-      <div class="t-meta">${r.batch ? 'Batch: '+escapeHtml(r.batch)+' · ' : ''}${r.reporter ? 'Reported by: '+escapeHtml(r.reporter) : ''}</div>
+      <div class="t-meta">${r.batch ? 'Batch: '+escapeHtml(r.batch) : ''}${(r.batch && r.reporter) ? ' · ' : ''}${r.reporter ? 'Reported by: '+escapeHtml(r.reporter) : ''}</div>
     </div>
   `).join('');
 }
