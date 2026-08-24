@@ -382,7 +382,7 @@ function renderProductField(area){
 }
 document.getElementById('f_area').addEventListener('change', (e)=> renderProductField(e.target.value));
 
-/* ---------- Fetch Data & Map Column N (Index 13 for Cause) ---------- */
+/* ---------- قراءة البيانات مع ربط العمود رقم 13 (Index 12) للـ Cause ---------- */
 async function loadRecords(){
   try {
     const response = await fetch(WEB_APP_URL, { redirect: 'follow' });
@@ -391,8 +391,8 @@ async function loadRecords(){
     if (Array.isArray(data)) {
       let rawRecords = data.map(item => {
         if (Array.isArray(item)) {
-          // ترتيب الأعمدة المربوطة بالشيت:
-          // [0:id, 1:date, 2:time, 3:shift, 4:reporter, 5:area, 6:batch, 7:product, 8:stage, 9:type, 10:qty, 11:unit, 12:cost, 13:cause (Column N), 14:details, 15:action, 16:status]
+          // ترتيب الأعمدة (يبدأ العد من 0):
+          // item[12] يوافق العمود رقم 13 في قوقل شيت (السبب / Root Cause)
           return {
             date: cleanDate(item[1]),
             time: cleanTime(item[2]),
@@ -406,10 +406,10 @@ async function loadRecords(){
             qty: parseFloat(item[10]) || 0,
             unit: item[11] || 'kg',
             cost: parseFloat(item[12]) || 0,
-            cause: item[13] || '',
-            details: item[14] || '',
-            action: item[15] || '',
-            status: item[16] || 'Resolved'
+            cause: item[12] || '', // العمود رقم 13 في الشيت (Index 12)
+            details: item[13] || '',
+            action: item[14] || '',
+            status: item[15] || 'Resolved'
           };
         }
         return {
