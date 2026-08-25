@@ -382,71 +382,31 @@ function renderProductField(area){
 }
 document.getElementById('f_area').addEventListener('change', (e)=> renderProductField(e.target.value));
 
-/* ---------- جلب وتفسير البيانات بمرونة تامة (تتغلب على اختلاف ترتيب الأعمدة) ---------- */
 async function loadRecords(){
   try {
     const response = await fetch(WEB_APP_URL, { redirect: 'follow' });
     const data = await response.json();
     
     if (Array.isArray(data) && data.length > 0) {
-      let rawRecords = data.map(item => {
-        if (Array.isArray(item)) {
-          // محاولة إيجاد القيم الرقمية والنصية بالاعتماد على محتوى الأعمدة بذكاء
-          let foundCost = 0, foundCause = '', foundDetails = '', foundAction = 'Resolved', foundStatus = 'Resolved';
-          
-          for(let i = 0; i < item.length; i++) {
-            let val = item[i];
-            if(val !== null && val !== undefined && String(val).trim() !== '') {
-              let strVal = String(val).trim();
-              // إذا كان حقل يحتوي على نقطة وفواصل أو أرقام كبيرة قد يكون تكلفة (إذا لم نجد تكلفة مسبقاً)
-              if(!isNaN(val) && Number(val) > 0 && i >= 10 && foundCost === 0) {
-                foundCost = parseFloat(val);
-              }
-              // كشف أسباب الهدر المعروفة
-              if(['Raw Material Defect', 'Equipment Malfunction', 'Human / Operational Error', 'Expired Shelf Life', 'Microbiological Contamination', 'Incorrect Process Settings', 'Storage Damage', 'Packaging / Labeling Error', 'Other'].includes(strVal)) {
-                foundCause = strVal;
-              }
-            }
-          }
-
-          return {
-            date: cleanDate(item[1] || item[0]),
-            time: cleanTime(item[2] || item[1]),
-            shift: item[3] || '',
-            reporter: item[4] || '',
-            area: item[5] || '',
-            batch: item[6] || '',
-            product: item[7] || '',
-            stage: item[8] || '',
-            type: item[9] || '',
-            qty: parseFloat(item[10]) || 0,
-            unit: item[11] || 'kg',
-            cost: parseFloat(item[12]) || foundCost || 0,     
-            cause: item[13] || foundCause || item[12] || '',                
-            details: item[14] || item[13] || '',              
-            action: item[15] || 'Disposed',               
-            status: item[16] || 'Resolved'        
-          };
-        }
-        return {
-          date: cleanDate(item.date || item.Date),
-          time: cleanTime(item.time || item.Time),
-          shift: item.shift || item.Shift || '',
-          reporter: item.reporter || item['Reported By'] || item.reportedBy || item.Reporter || '',
-          area: item.area || item.Area || '',
-          batch: item.batch || item.Batch || '',
-          product: item.product || item.Product || '',
-          stage: item.stage || item.Stage || '',
-          type: item.type || item['Waste Type'] || item.wasteType || item['waste Type'] || '',
-          qty: parseFloat(item.qty || item.quantity || item.Quantity) || 0,
-          unit: item.unit || item.Unit || 'kg',
-          cost: parseFloat(item.cost || item.Cost) || 0,
-          cause: item.cause || item['Root Cause'] || item.rootCause || item.reason || '',
-          details: item.details || item.Details || item['Additional Details'] || '',
-          action: item.action || item.Action || item['Corrective Action'] || '',
-          status: item.status || item.Status || 'Resolved'
-        };
-      });
+      let rawRecords = data.map(item => ({
+        id: item.id || '',
+        date: cleanDate(item.date),
+        time: cleanTime(item.time),
+        shift: item.shift || '',
+        reporter: item.reporter || '',
+        area: item.area || '',
+        batch: item.batch || '',
+        product: item.product || '',
+        stage: item.stage || '',
+        type: item.type || '',          // Waste Type المطابق تماماً لعمود J
+        qty: parseFloat(item.qty) || 0,
+        unit: item.unit || 'kg',
+        cost: parseFloat(item.cost) || 0, // Cost المطابق تماماً لعمود M
+        cause: item.cause || '',        // Root Cause المطابق تماماً لعمود N
+        details: item.details || '',
+        action: item.action || '',
+        status: item.status || 'Resolved'
+      }));
       
       records = rawRecords.reverse();
     }
@@ -481,8 +441,7 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
     cause: document.getElementById('f_cause').value,
     details: document.getElementById('f_details').value.trim(),
     action: document.getElementById('f_action').value,
-    status: document.getElementById('f_status').value,
-    createdAt: new Date().toISOString()
+    status: document.getElementById('f_status').value
   };
 
   const msg = document.getElementById('saveMsg');
@@ -638,7 +597,7 @@ function mixWithWhite(hex, ratio){
 }
 function shadesForArea(area, n){
   if(area === 'Area 3'){
-    const palette = ['#2C6E2E','#3E8B3B','#6FA83A','icon','#8FBF6B','#A9D492','#C7E3B9','#1F5423','#163C1B','#4A7A46'];
+    const palette = ['#2C6E2E','#3E8B3B','#6FA83A','#8FBF6B','#A9D492','#C7E3B9','#1F5423','#163C1B','#4A7A46'];
     return Array.from({length:n}, (_,i)=>palette[i % palette.length]);
   }
   const base = AREA_COLORS[area] || '#3E8B3B';
