@@ -29,6 +29,7 @@
   }
   .shell{ max-width:520px; margin:0 auto; min-height:100vh; background:var(--white); display:flex; flex-direction:column;}
 
+  /* Header */
   header{
     padding:20px 20px 16px;
     color:var(--ink);
@@ -55,6 +56,7 @@
   .stat .num.text{ font-size:12px; }
   .stat .lbl{ font-size:9px; color:var(--muted); margin-top:4px; letter-spacing:.03em; }
 
+  /* Tabs */
   nav.tabs{
     display:flex; gap:6px; padding:14px 20px 12px; background:var(--white);
   }
@@ -67,6 +69,7 @@
 
   main{ flex:1; background:var(--white); padding:6px 16px 100px;}
 
+  /* Panels */
   .panel{
     background:var(--white); border:1.5px solid var(--line); border-radius:12px;
     padding:16px 16px 6px; margin-bottom:16px;
@@ -100,6 +103,7 @@
   .save-msg.ok{ color:var(--green-700); }
   .save-msg.err{ color:var(--red); }
 
+  /* Filters */
   .filter-panel{
     border:1.5px solid var(--green-600); border-radius:10px; padding:12px; margin-bottom:16px; background:var(--green-100);
   }
@@ -353,22 +357,6 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-function cleanDate(val){
-  if(!val) return '';
-  let str = String(val);
-  return str.includes('T') ? str.split('T')[0] : str;
-}
-
-function cleanTime(val){
-  if(!val) return '';
-  let str = String(val);
-  if(str.includes('T')) {
-    let t = str.split('T')[1];
-    return t ? t.slice(0,5) : '';
-  }
-  return str;
-}
-
 function renderProductField(area){
   const container = document.getElementById('productFieldContainer');
   if(AREA_PRODUCTS[area]){
@@ -388,8 +376,8 @@ async function loadRecords(){
     if (Array.isArray(data) && data.length > 0) {
       let rawRecords = data.map(item => ({
         id: item.id || '',
-        date: cleanDate(item.date),
-        time: cleanTime(item.time),
+        date: item.date || '', // العمود B
+        time: item.time || '', // العمود C
         shift: item.shift || '',
         reporter: item.reporter || '',
         area: item.area || '',
@@ -415,16 +403,6 @@ async function loadRecords(){
 }
 
 function initForm(){
-  // تعبئة افتراضية مبدئية بتوقيت الجهاز المحلي فقط عند فتح الصفحة لأول مرة
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const hour = String(now.getHours()).padStart(2, '0');
-  const minute = String(now.getMinutes()).padStart(2, '0');
-
-  document.getElementById('f_date').value = `${year}-${month}-${day}`;
-  document.getElementById('f_time').value = `${hour}:${minute}`;
   renderProductField(document.getElementById('f_area').value);
 }
 
@@ -432,8 +410,8 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   const productEl = document.getElementById('f_product');
   const rec = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-    date: document.getElementById('f_date').value, // يأخذ القيمة الموجودة في الحقل حرفياً
-    time: document.getElementById('f_time').value, // يأخذ القيمة الموجودة في الحقل حرفياً
+    date: document.getElementById('f_date').value, // يُرسل مباشرة للعمود B
+    time: document.getElementById('f_time').value, // يُرسل مباشرة للعمود C
     shift: document.getElementById('f_shift').value,
     reporter: document.getElementById('f_reporter').value.trim(),
     area: document.getElementById('f_area').value,
