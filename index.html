@@ -382,7 +382,7 @@ function renderProductField(area){
 }
 document.getElementById('f_area').addEventListener('change', (e)=> renderProductField(e.target.value));
 
-/* ---------- قراءة البيانات مع ربط العمود رقم 13 (Index 12) للـ Cause ---------- */
+/* ---------- قراءة البيانات مع ضبط الـ Cost (Index 12) والـ Cause (Index 13) بدقة ---------- */
 async function loadRecords(){
   try {
     const response = await fetch(WEB_APP_URL, { redirect: 'follow' });
@@ -391,8 +391,6 @@ async function loadRecords(){
     if (Array.isArray(data)) {
       let rawRecords = data.map(item => {
         if (Array.isArray(item)) {
-          // ترتيب الأعمدة (يبدأ العد من 0):
-          // item[12] يوافق العمود رقم 13 في قوقل شيت (السبب / Root Cause)
           return {
             date: cleanDate(item[1]),
             time: cleanTime(item[2]),
@@ -405,11 +403,11 @@ async function loadRecords(){
             type: item[9] || '',
             qty: parseFloat(item[10]) || 0,
             unit: item[11] || 'kg',
-            cost: parseFloat(item[12]) || 0,
-            cause: item[12] || '', // العمود رقم 13 في الشيت (Index 12)
-            details: item[13] || '',
-            action: item[14] || '',
-            status: item[15] || 'Resolved'
+            cost: parseFloat(item[12]) || 0,     // التكلفة في العمود 13 (Index 12)
+            cause: item[13] || '',                // السبب الرئيسي في العمود 14 (Index 13)
+            details: item[14] || '',              // التفاصيل في العمود 15 (Index 14)
+            action: item[15] || '',               // الإجراء في العمود 16 (Index 15)
+            status: item[16] || 'Resolved'        // الحالة في العمود 17 (Index 16)
           };
         }
         return {
