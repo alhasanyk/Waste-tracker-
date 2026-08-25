@@ -176,8 +176,8 @@
       <div class="panel">
         <div class="panel-title">Basic Information</div>
         <div class="row2">
-          <div class="field"><label>Date (Auto)</label><input type="date" id="f_date" readonly></div>
-          <div class="field"><label>Time (Auto)</label><input type="time" id="f_time" readonly></div>
+          <div class="field"><label>Date (Jeddah Time)</label><input type="date" id="f_date" readonly></div>
+          <div class="field"><label>Time (Jeddah Time)</label><input type="time" id="f_time" readonly></div>
         </div>
         <div class="row2">
           <div class="field"><label>Shift</label>
@@ -357,11 +357,30 @@ const AREA_ORDER = ["Area 1","Area 2","Area 3","Area 4"];
 let records = [];
 let pieChart, lineChart;
 
-function todayStr(){ return new Date().toISOString().slice(0,10); }
-function nowTime(){ return new Date().toTimeString().slice(0,5); }
+// دوال جلب التاريخ والوقت حصرياً بتوقيت جدة (Asia/Riyadh)
+function getJeddahDateObj() {
+  const now = new Date();
+  return new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Riyadh' }));
+}
+
+function todayStr(){
+  const d = getJeddahDateObj();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function nowTime(){
+  const d = getJeddahDateObj();
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
 function escapeHtml(s){
   if(!s) return '';
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;min'}[c]));
 }
 
 function cleanDate(val){
@@ -432,7 +451,7 @@ function initForm(){
 }
 
 document.getElementById('saveBtn').addEventListener('click', async ()=>{
-  // تحديث وقت التاريخ والوقت تلقائياً عند الضغط على زر الإضافة
+  // تحديث وقت التاريخ والوقت تلقائياً بتوقيت جدة عند الضغط على زر الإضافة
   document.getElementById('f_date').value = todayStr();
   document.getElementById('f_time').value = nowTime();
 
