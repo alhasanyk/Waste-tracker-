@@ -357,30 +357,53 @@ const AREA_ORDER = ["Area 1","Area 2","Area 3","Area 4"];
 let records = [];
 let pieChart, lineChart;
 
-// دوال جلب التاريخ والوقت حصرياً بتوقيت جدة (Asia/Riyadh)
-function getJeddahDateObj() {
+// دالة جلب التاريخ والوقت بدقة تامة لتوقيت جدة (Asia/Riyadh) بدون أي إزاحة في الأيام أو الساعات
+function getJeddahDateTime() {
   const now = new Date();
-  return new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Riyadh' }));
+  
+  // استخراج التاريخ والوقت بصيغة أجزاء واضحة لتوقيت الرياض/جدة
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Riyadh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+
+  const parts = formatter.formatToParts(now);
+  const partMap = {};
+  parts.forEach(p => partMap[p.type] = p.value);
+
+  let year = partMap['year'];
+  let month = partMap['month'];
+  let day = partMap['day'];
+  let hour = partMap['hour'];
+  let minute = partMap['minute'];
+
+  // معالجة حالة تكون الساعة فيها "24" لتصبح "00"
+  if (hour === '24') {
+    hour = '00';
+  }
+
+  return {
+    date: `${year}-${month}-${day}`,
+    time: `${hour}:${minute}`
+  };
 }
 
 function todayStr(){
-  const d = getJeddahDateObj();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return getJeddahDateTime().date;
 }
 
 function nowTime(){
-  const d = getJeddahDateObj();
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  return `${hours}:${minutes}`;
+  return getJeddahDateTime().time;
 }
 
 function escapeHtml(s){
   if(!s) return '';
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;min'}[c]));
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 function cleanDate(val){
@@ -451,7 +474,7 @@ function initForm(){
 }
 
 document.getElementById('saveBtn').addEventListener('click', async ()=>{
-  // تحديث وقت التاريخ والوقت تلقائياً بتوقيت جدة عند الضغط على زر الإضافة
+  // تحديث وقت التاريخ والوقت تلقائياً بدقة بتوقيت جدة عند الضغط على زر الإضافة
   document.getElementById('f_date').value = todayStr();
   document.getElementById('f_time').value = nowTime();
 
