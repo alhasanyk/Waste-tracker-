@@ -308,7 +308,6 @@
 </div>
 
 <script>
-// تم وضع الرابط الجديد هنا بدلاً من القديم
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzwpUkt6rbAwVhYWelnGqcZkT4unC-FVcxEpEwuwNEONaPFwnoiApc5vXkw7XOEBJ-hmw/exec';
 
 const AREA_PRODUCTS = {
@@ -358,29 +357,14 @@ const AREA_ORDER = ["Area 1","Area 2","Area 3","Area 4"];
 let records = [];
 let pieChart, lineChart;
 
-function getJeddahDateTime() {
-  const now = new Date();
-  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-  const jeddahDate = new Date(utc + (3 * 3600000));
-
-  const year = jeddahDate.getFullYear();
-  const month = String(jeddahDate.getMonth() + 1).padStart(2, '0');
-  const day = String(jeddahDate.getDate()).padStart(2, '0');
-  const hour = String(jeddahDate.getHours()).padStart(2, '0');
-  const minute = String(jeddahDate.getMinutes()).padStart(2, '0');
-
-  return {
-    date: `${year}-${month}-${day}`,
-    time: `${hour}:${minute}`
-  };
-}
-
 function todayStr(){
-  return getJeddahDateTime().date;
+  const d = new Date();
+  return d.toISOString().split('T')[0];
 }
 
 function nowTime(){
-  return getJeddahDateTime().time;
+  const d = new Date();
+  return d.toTimeString().slice(0,5);
 }
 
 function escapeHtml(s){
@@ -493,6 +477,7 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   try {
     await fetch(WEB_APP_URL, {
       method: 'POST',
+      mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(rec),
       redirect: 'follow'
