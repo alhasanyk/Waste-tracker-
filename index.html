@@ -357,27 +357,14 @@ const AREA_ORDER = ["Area 1","Area 2","Area 3","Area 4"];
 let records = [];
 let pieChart, lineChart;
 
-// دالة دقيقة جداً لتحديد تاريخ ووقت جدة (السعودية) الحالي بصيغة صحيحة
-function getJeddahDateTime() {
-  const now = new Date();
-  const optionsDate = { timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit', day: '2-digit' };
-  const optionsTime = { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit', hour12: false };
-  
-  const formatterDate = new Intl.DateTimeFormat('en-CA', optionsDate); // يعطي YYYY-MM-DD مباشرة
-  const formatterTime = new Intl.DateTimeFormat('en-GB', optionsTime); // يعطي HH:mm مباشرة
-  
-  return {
-    date: formatterDate.format(now),
-    time: formatterTime.format(now).replace(/^24:/, '00:')
-  };
-}
-
 function todayStr(){
-  return getJeddahDateTime().date;
+  const d = new Date();
+  return d.toISOString().split('T')[0];
 }
 
 function nowTime(){
-  return getJeddahDateTime().time;
+  const d = new Date();
+  return d.toTimeString().slice(0,5);
 }
 
 function escapeHtml(s){
