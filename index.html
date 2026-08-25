@@ -308,7 +308,7 @@
 </div>
 
 <script>
-const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzwpUkt6rbAwVhYWelnGqcZkT4unC-FVcxEpEwuwNEONaPFwnoiApc5vXkw7XOEBJ-hmw/exec';
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxQMHh8mLUSjXk9MPGMpJxnDhcHK6iA_cCOjhgrAPMn450bXW5lgyRMZaMiKwH16eikrQ/exec';
 
 const AREA_PRODUCTS = {
   "Area 1": [
@@ -357,14 +357,31 @@ const AREA_ORDER = ["Area 1","Area 2","Area 3","Area 4"];
 let records = [];
 let pieChart, lineChart;
 
+// دالة جلب توقيت جدة المباشر (توقيت السعودية ثابت GMT+3 بدون أي اعتماد على إعدادات متصفح معقدة)
+function getJeddahDateTime() {
+  const now = new Date();
+  // تحويل الوقت إلى التوقيت العالمي (UTC) ثم إضافة 3 ساعات لتوقيت جدة (توقيت السعودية الصيفي/الشتوي ثابت على +3)
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const jeddahDate = new Date(utc + (3 * 3600000));
+
+  const year = jeddahDate.getFullYear();
+  const month = String(jeddahDate.getMonth() + 1).padStart(2, '0');
+  const day = String(jeddahDate.getDate()).padStart(2, '0');
+  const hour = String(jeddahDate.getHours()).padStart(2, '0');
+  const minute = String(jeddahDate.getMinutes()).padStart(2, '0');
+
+  return {
+    date: `${year}-${month}-${day}`,
+    time: `${hour}:${minute}`
+  };
+}
+
 function todayStr(){
-  const d = new Date();
-  return d.toISOString().split('T')[0];
+  return getJeddahDateTime().date;
 }
 
 function nowTime(){
-  const d = new Date();
-  return d.toTimeString().slice(0,5);
+  return getJeddahDateTime().time;
 }
 
 function escapeHtml(s){
@@ -477,7 +494,6 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   try {
     await fetch(WEB_APP_URL, {
       method: 'POST',
-      mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(rec),
       redirect: 'follow'
@@ -740,3 +756,5 @@ loadRecords();
 </script>
 </body>
 </html>
+
+عدل
