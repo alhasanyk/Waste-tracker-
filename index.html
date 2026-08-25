@@ -308,7 +308,7 @@
 </div>
 
 <script>
-const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxQMHh8mLUSjXk9MPGMpJxnDhcHK6iA_cCOjhgrAPMn450bXW5lgyRMZaMiKwH16eikrQ/exec';
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxSACDPHF9ggJBYf4tVxUFpb3koVSFObFJQMaROPTag_JzKp-GY3K57KD41uAAaT9a-8A/exec';
 
 const AREA_PRODUCTS = {
   "Area 1": [
@@ -357,7 +357,6 @@ const AREA_ORDER = ["Area 1","Area 2","Area 3","Area 4"];
 let records = [];
 let pieChart, lineChart;
 
-// دالة جلب توقيت جدة المباشر (توقيت السعودية ثابت GMT+3 بدون أي اعتماد على إعدادات متصفح معقدة)
 function getJeddahDateTime() {
   const now = new Date();
   const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
@@ -456,7 +455,8 @@ function initForm(){
 }
 
 document.getElementById('saveBtn').addEventListener('click', async ()=>{
-  // تم إزالة تحديث f_date و f_time هنا لتعتمد على القيم الموجودة في الخانات بشكل طبيعي
+  document.getElementById('f_date').value = todayStr();
+  document.getElementById('f_time').value = nowTime();
 
   const productEl = document.getElementById('f_product');
   const rec = {
