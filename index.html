@@ -382,18 +382,36 @@ function renderProductField(area){
 }
 document.getElementById('f_area').addEventListener('change', (e)=> renderProductField(e.target.value));
 
-/* ---------- قراءة البيانات مع ضبط الـ Cost (Index 12) والـ Cause (Index 13) بدقة ---------- */
+/* ---------- جلب وتفسير البيانات بمرونة تامة (تتغلب على اختلاف ترتيب الأعمدة) ---------- */
 async function loadRecords(){
   try {
     const response = await fetch(WEB_APP_URL, { redirect: 'follow' });
     const data = await response.json();
     
-    if (Array.isArray(data)) {
+    if (Array.isArray(data) && data.length > 0) {
       let rawRecords = data.map(item => {
         if (Array.isArray(item)) {
+          // محاولة إيجاد القيم الرقمية والنصية بالاعتماد على محتوى الأعمدة بذكاء
+          let foundCost = 0, foundCause = '', foundDetails = '', foundAction = 'Resolved', foundStatus = 'Resolved';
+          
+          for(let i = 0; i < item.length; i++) {
+            let val = item[i];
+            if(val !== null && val !== undefined && String(val).trim() !== '') {
+              let strVal = String(val).trim();
+              // إذا كان حقل يحتوي على نقطة وفواصل أو أرقام كبيرة قد يكون تكلفة (إذا لم نجد تكلفة مسبقاً)
+              if(!isNaN(val) && Number(val) > 0 && i >= 10 && foundCost === 0) {
+                foundCost = parseFloat(val);
+              }
+              // كشف أسباب الهدر المعروفة
+              if(['Raw Material Defect', 'Equipment Malfunction', 'Human / Operational Error', 'Expired Shelf Life', 'Microbiological Contamination', 'Incorrect Process Settings', 'Storage Damage', 'Packaging / Labeling Error', 'Other'].includes(strVal)) {
+                foundCause = strVal;
+              }
+            }
+          }
+
           return {
-            date: cleanDate(item[1]),
-            time: cleanTime(item[2]),
+            date: cleanDate(item[1] || item[0]),
+            time: cleanTime(item[2] || item[1]),
             shift: item[3] || '',
             reporter: item[4] || '',
             area: item[5] || '',
@@ -403,11 +421,11 @@ async function loadRecords(){
             type: item[9] || '',
             qty: parseFloat(item[10]) || 0,
             unit: item[11] || 'kg',
-            cost: parseFloat(item[12]) || 0,     // التكلفة في العمود 13 (Index 12)
-            cause: item[13] || '',                // السبب الرئيسي في العمود 14 (Index 13)
-            details: item[14] || '',              // التفاصيل في العمود 15 (Index 14)
-            action: item[15] || '',               // الإجراء في العمود 16 (Index 15)
-            status: item[16] || 'Resolved'        // الحالة في العمود 17 (Index 16)
+            cost: parseFloat(item[12]) || foundCost || 0,     
+            cause: item[13] || foundCause || item[12] || '',                
+            details: item[14] || item[13] || '',              
+            action: item[15] || 'Disposed',               
+            status: item[16] || 'Resolved'        
           };
         }
         return {
@@ -620,7 +638,7 @@ function mixWithWhite(hex, ratio){
 }
 function shadesForArea(area, n){
   if(area === 'Area 3'){
-    const palette = ['#2C6E2E','#3E8B3B','#6FA83A','#8FBF6B','#A9D492','#C7E3B9','#1F5423','#163C1B','#4A7A46'];
+    const palette = ['#2C6E2E','#3E8B3B','#6FA83A','icon','#8FBF6B','#A9D492','#C7E3B9','#1F5423','#163C1B','#4A7A46'];
     return Array.from({length:n}, (_,i)=>palette[i % palette.length]);
   }
   const base = AREA_COLORS[area] || '#3E8B3B';
