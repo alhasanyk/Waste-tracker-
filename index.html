@@ -85,11 +85,6 @@
     width:100%; padding:10px 12px; border:1.5px solid var(--line); border-radius:7px;
     font-family:inherit; font-size:13.5px; background:var(--white); color:var(--ink);
   }
-  .field input:read-only {
-    background-color: #f4f7f3;
-    color: var(--muted);
-    cursor: not-allowed;
-  }
   .field textarea{ resize:vertical; min-height:52px; }
   .row2{ display:flex; gap:10px; }
   .row2 .field{ flex:1; }
@@ -176,16 +171,12 @@
       <div class="panel">
         <div class="panel-title">Basic Information</div>
         <div class="row2">
-          <div class="field"><label>Date (Jeddah Time)</label><input type="date" id="f_date" readonly></div>
-          <div class="field"><label>Time (Jeddah Time)</label><input type="time" id="f_time" readonly></div>
+          <div class="field"><label>Date</label><input type="date" id="f_date"></div>
+          <div class="field"><label>Time</label><input type="time" id="f_time"></div>
         </div>
         <div class="row2">
           <div class="field"><label>Shift</label>
-            <select id="f_shift">
-              <option value="A">A</option>
-              <option value="A+">A+</option>
-              <option value="B">B</option>
-            </select>
+            <select id="f_shift"><option value="Morning">Morning</option><option value="Afternoon">Afternoon</option><option value="Night">Night</option></select>
           </div>
           <div class="field"><label>Reported By</label><input type="text" id="f_reporter" placeholder="e.g., A. Mansour"></div>
         </div>
@@ -308,7 +299,7 @@
 </div>
 
 <script>
-const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxSACDPHF9ggJBYf4tVxUFpb3koVSFObFJQMaROPTag_JzKp-GY3K57KD41uAAaT9a-8A/exec';
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyc-i13hg9DVrQw3fQXBABVqF-N6AZGIoZe4RdzL5S3V2Mru7fgPEaLoCVFEfU4i8nNYQ/exec';
 
 const AREA_PRODUCTS = {
   "Area 1": [
@@ -357,31 +348,8 @@ const AREA_ORDER = ["Area 1","Area 2","Area 3","Area 4"];
 let records = [];
 let pieChart, lineChart;
 
-function getJeddahDateTime() {
-  const now = new Date();
-  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-  const jeddahDate = new Date(utc + (3 * 3600000));
-
-  const year = jeddahDate.getFullYear();
-  const month = String(jeddahDate.getMonth() + 1).padStart(2, '0');
-  const day = String(jeddahDate.getDate()).padStart(2, '0');
-  const hour = String(jeddahDate.getHours()).padStart(2, '0');
-  const minute = String(jeddahDate.getMinutes()).padStart(2, '0');
-
-  return {
-    date: `${year}-${month}-${day}`,
-    time: `${hour}:${minute}`
-  };
-}
-
-function todayStr(){
-  return getJeddahDateTime().date;
-}
-
-function nowTime(){
-  return getJeddahDateTime().time;
-}
-
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function nowTime(){ return new Date().toTimeString().slice(0,5); }
 function escapeHtml(s){
   if(!s) return '';
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -414,32 +382,55 @@ function renderProductField(area){
 }
 document.getElementById('f_area').addEventListener('change', (e)=> renderProductField(e.target.value));
 
+/* ---------- Fetch Data & Reverse to Show Newest First ---------- */
 async function loadRecords(){
   try {
     const response = await fetch(WEB_APP_URL, { redirect: 'follow' });
     const data = await response.json();
     
-    if (Array.isArray(data) && data.length > 0) {
-      let rawRecords = data.map(item => ({
-        id: item.id || '',
-        date: cleanDate(item.date),
-        time: cleanTime(item.time),
-        shift: item.shift || '',
-        reporter: item.reporter || '',
-        area: item.area || '',
-        batch: item.batch || '',
-        product: item.product || '',
-        stage: item.stage || '',
-        type: item.type || '',
-        qty: parseFloat(item.qty) || 0,
-        unit: item.unit || 'kg',
-        cost: parseFloat(item.cost) || 0,
-        cause: item.cause || '',
-        details: item.details || '',
-        action: item.action || '',
-        status: item.status || 'Resolved'
-      }));
+    if (Array.isArray(data)) {
+      let rawRecords = data.map(item => {
+        if (Array.isArray(item)) {
+          return {
+            date: cleanDate(item[1]),
+            time: cleanTime(item[2]),
+            shift: item[3] || '',
+            reporter: item[4] || '',
+            area: item[5] || '',
+            batch: item[6] || '',
+            product: item[7] || '',
+            stage: item[8] || '',
+            type: item[9] || '',
+            qty: parseFloat(item[10]) || 0,
+            unit: item[11] || 'kg',
+            cost: parseFloat(item[12]) || 0,
+            cause: item[13] || '',
+            details: item[14] || '',
+            action: item[15] || '',
+            status: item[16] || 'Resolved'
+          };
+        }
+        return {
+          date: cleanDate(item.date || item.Date),
+          time: cleanTime(item.time || item.Time),
+          shift: item.shift || item.Shift || '',
+          reporter: item.reporter || item['Reported By'] || item.reportedBy || item.Reporter || '',
+          area: item.area || item.Area || '',
+          batch: item.batch || item.Batch || '',
+          product: item.product || item.Product || '',
+          stage: item.stage || item.Stage || '',
+          type: item.type || item['Waste Type'] || item.wasteType || '',
+          qty: parseFloat(item.qty || item.quantity || item.Quantity) || 0,
+          unit: item.unit || item.Unit || 'kg',
+          cost: parseFloat(item.cost || item.Cost) || 0,
+          cause: item.cause || item['Root Cause'] || item.reason || '',
+          details: item.details || item.Details || '',
+          action: item.action || item.Action || '',
+          status: item.status || item.Status || 'Resolved'
+        };
+      });
       
+      // عكس الترتيب ليصبح الأحدث فوق والأقدم تحت
       records = rawRecords.reverse();
     }
   } catch (e) {
@@ -455,14 +446,11 @@ function initForm(){
 }
 
 document.getElementById('saveBtn').addEventListener('click', async ()=>{
-  document.getElementById('f_date').value = todayStr();
-  document.getElementById('f_time').value = nowTime();
-
   const productEl = document.getElementById('f_product');
   const rec = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-    date: document.getElementById('f_date').value,
-    time: document.getElementById('f_time').value,
+    date: document.getElementById('f_date').value || todayStr(),
+    time: document.getElementById('f_time').value || nowTime(),
     shift: document.getElementById('f_shift').value,
     reporter: document.getElementById('f_reporter').value.trim(),
     area: document.getElementById('f_area').value,
@@ -476,7 +464,8 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
     cause: document.getElementById('f_cause').value,
     details: document.getElementById('f_details').value.trim(),
     action: document.getElementById('f_action').value,
-    status: document.getElementById('f_status').value
+    status: document.getElementById('f_status').value,
+    createdAt: new Date().toISOString()
   };
 
   const msg = document.getElementById('saveMsg');
@@ -487,7 +476,7 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   }
 
   const btn = document.getElementById('saveBtn');
-  btn.disabled = true; btn.textContent = 'Saving to Google Sheets...';
+  btn.disabled = true; btn.textContent = 'Saving...';
 
   try {
     await fetch(WEB_APP_URL, {
@@ -498,7 +487,7 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
     });
     records.unshift(rec);
     msg.className = 'save-msg ok';
-    msg.textContent = 'Saved to Google Sheets successfully!';
+    msg.textContent = 'Record saved successfully!';
   } catch (err) {
     console.error('Save error:', err);
     records.unshift(rec);
@@ -581,7 +570,7 @@ function renderHistory(){
       <div class="t-head">
         <div>
           <div class="t-title">${escapeHtml(r.product)}</div>
-          <div class="t-date">${r.date} · ${r.time} · Shift: ${escapeHtml(r.shift||'')}</div>
+          <div class="t-date">${r.date} · ${r.time} · ${escapeHtml(r.shift||'')}</div>
         </div>
         <div class="t-cost">${r.cost ? r.cost.toLocaleString('en-US')+' SAR' : ''}</div>
       </div>
