@@ -299,7 +299,7 @@
 </div>
 
 <script>
-const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyc-i13hg9DVrQw3fQXBABVqF-N6AZGIoZe4RdzL5S3V2Mru7fgPEaLoCVFEfU4i8nNYQ/exec';
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxQMHh8mLUSjXk9MPGMpJxnDhcHK6iA_cCOjhgrAPMn450bXW5lgyRMZaMiKwH16eikrQ/exec';
 
 const AREA_PRODUCTS = {
   "Area 1": [
@@ -398,11 +398,11 @@ async function loadRecords(){
         batch: item.batch || '',
         product: item.product || '',
         stage: item.stage || '',
-        type: item.type || '',          // Waste Type المطابق تماماً لعمود J
+        type: item.type || '',
         qty: parseFloat(item.qty) || 0,
         unit: item.unit || 'kg',
-        cost: parseFloat(item.cost) || 0, // Cost المطابق تماماً لعمود M
-        cause: item.cause || '',        // Root Cause المطابق تماماً لعمود N
+        cost: parseFloat(item.cost) || 0,
+        cause: item.cause || '',
         details: item.details || '',
         action: item.action || '',
         status: item.status || 'Resolved'
