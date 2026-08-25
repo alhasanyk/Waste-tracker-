@@ -171,8 +171,9 @@
       <div class="panel">
         <div class="panel-title">Basic Information</div>
         <div class="row2">
-          <div class="field"><label>Date</label><input type="date" id="f_date"></div>
-          <!-- تم إضافة خاصية readonly ولون خلفية خفيف ليكون الوقت غير قابل للتعديل -->
+          <!-- تم إضافة خاصية readonly ولون خلفية خفيف لحقل التاريخ ليصبح غير قابل للتعديل -->
+          <div class="field"><label>Date</label><input type="date" id="f_date" readonly style="background-color: #f1f3f0; cursor: not-allowed;"></div>
+          <!-- تم إضافة خاصية readonly ولون خلفية خفيف لحقل الوقت ليصبح غير قابل للتعديل -->
           <div class="field"><label>Time</label><input type="time" id="f_time" readonly style="background-color: #f1f3f0; cursor: not-allowed;"></div>
         </div>
         <div class="row2">
@@ -369,9 +370,20 @@ function renderProductField(area){
 }
 document.getElementById('f_area').addEventListener('change', (e)=> renderProductField(e.target.value));
 
-// وظيفة لتحديث وتعبئة الوقت الحالي تلقائياً
-function updateCurrentTime() {
+// وظيفة لتحديث وتعبئة التاريخ والوقت الحالي تلقائياً
+function updateCurrentDateTime() {
   const now = new Date();
+  
+  // تنسيق التاريخ (YYYY-MM-DD)
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const dateEl = document.getElementById('f_date');
+  if(dateEl) {
+    dateEl.value = `${year}-${month}-${day}`;
+  }
+
+  // تنسيق الوقت (HH:MM)
   const hours = String(now.getHours()).padStart(2, '0');
   const minutes = String(now.getMinutes()).padStart(2, '0');
   const timeEl = document.getElementById('f_time');
@@ -416,11 +428,11 @@ async function loadRecords(){
 
 function initForm(){
   renderProductField(document.getElementById('f_area').value);
-  updateCurrentTime(); // تعيين الوقت الحالي عند بدء التشغيل
+  updateCurrentDateTime(); // تعيين التاريخ والوقت الحالي عند بدء التشغيل
 }
 
 document.getElementById('saveBtn').addEventListener('click', async ()=>{
-  updateCurrentTime(); // تحديث الوقت للحظة الحفظ الحالية
+  updateCurrentDateTime(); // تحديث التاريخ والوقت للحظة الحفظ الحالية
   const productEl = document.getElementById('f_product');
   const rec = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
@@ -474,7 +486,7 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   document.getElementById('f_qty').value='';
   document.getElementById('f_cost').value='';
   document.getElementById('f_details').value='';
-  updateCurrentTime(); // إعادة ضبط الوقت الحالي بعد الحفظ
+  updateCurrentDateTime(); // إعادة ضبط التاريخ والوقت الحالي بعد الحفظ
   renderAll();
 
   setTimeout(()=>{ msg.textContent=''; }, 4000);
