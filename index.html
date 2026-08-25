@@ -171,18 +171,12 @@
       <div class="panel">
         <div class="panel-title">Basic Information</div>
         <div class="row2">
-          <!-- تم إضافة خاصية readonly ولون خلفية خفيف لحقل التاريخ ليصبح غير قابل للتعديل -->
-          <div class="field"><label>Date</label><input type="date" id="f_date" readonly style="background-color: #f1f3f0; cursor: not-allowed;"></div>
-          <!-- تم إضافة خاصية readonly ولون خلفية خفيف لحقل الوقت ليصبح غير قابل للتعديل -->
-          <div class="field"><label>Time</label><input type="time" id="f_time" readonly style="background-color: #f1f3f0; cursor: not-allowed;"></div>
+          <div class="field"><label>Date</label><input type="date" id="f_date"></div>
+          <div class="field"><label>Time</label><input type="time" id="f_time"></div>
         </div>
         <div class="row2">
           <div class="field"><label>Shift</label>
-            <select id="f_shift">
-              <option value="A">A</option>
-              <option value="A+">A+</option>
-              <option value="B">B</option>
-            </select>
+            <select id="f_shift"><option value="Morning">Morning</option><option value="Afternoon">Afternoon</option><option value="Night">Night</option></select>
           </div>
           <div class="field"><label>Reported By</label><input type="text" id="f_reporter" placeholder="e.g., A. Mansour"></div>
         </div>
@@ -305,7 +299,7 @@
 </div>
 
 <script>
-const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzwRC72EK6Wd3CxFsvZ9R7BLAwVkz5lybTJwo49Z5kTrGy072023AQtFl1pSkhavhuwGg/exec';
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxQMHh8mLUSjXk9MPGMpJxnDhcHK6iA_cCOjhgrAPMn450bXW5lgyRMZaMiKwH16eikrQ/exec';
 
 const AREA_PRODUCTS = {
   "Area 1": [
@@ -354,9 +348,27 @@ const AREA_ORDER = ["Area 1","Area 2","Area 3","Area 4"];
 let records = [];
 let pieChart, lineChart;
 
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function nowTime(){ return new Date().toTimeString().slice(0,5); }
 function escapeHtml(s){
   if(!s) return '';
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function cleanDate(val){
+  if(!val) return todayStr();
+  let str = String(val);
+  return str.includes('T') ? str.split('T')[0] : str;
+}
+
+function cleanTime(val){
+  if(!val) return '';
+  let str = String(val);
+  if(str.includes('T')) {
+    let t = str.split('T')[1];
+    return t ? t.slice(0,5) : '';
+  }
+  return str;
 }
 
 function renderProductField(area){
@@ -370,28 +382,6 @@ function renderProductField(area){
 }
 document.getElementById('f_area').addEventListener('change', (e)=> renderProductField(e.target.value));
 
-// وظيفة لتحديث وتعبئة التاريخ والوقت الحالي تلقائياً
-function updateCurrentDateTime() {
-  const now = new Date();
-  
-  // تنسيق التاريخ (YYYY-MM-DD)
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const dateEl = document.getElementById('f_date');
-  if(dateEl) {
-    dateEl.value = `${year}-${month}-${day}`;
-  }
-
-  // تنسيق الوقت (HH:MM)
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  const timeEl = document.getElementById('f_time');
-  if(timeEl) {
-    timeEl.value = `${hours}:${minutes}`;
-  }
-}
-
 async function loadRecords(){
   try {
     const response = await fetch(WEB_APP_URL, { redirect: 'follow' });
@@ -400,8 +390,8 @@ async function loadRecords(){
     if (Array.isArray(data) && data.length > 0) {
       let rawRecords = data.map(item => ({
         id: item.id || '',
-        date: item.date || '', // العمود B
-        time: item.time || '', // العمود C
+        date: cleanDate(item.date),
+        time: cleanTime(item.time),
         shift: item.shift || '',
         reporter: item.reporter || '',
         area: item.area || '',
@@ -427,17 +417,17 @@ async function loadRecords(){
 }
 
 function initForm(){
+  document.getElementById('f_date').value = todayStr();
+  document.getElementById('f_time').value = nowTime();
   renderProductField(document.getElementById('f_area').value);
-  updateCurrentDateTime(); // تعيين التاريخ والوقت الحالي عند بدء التشغيل
 }
 
 document.getElementById('saveBtn').addEventListener('click', async ()=>{
-  updateCurrentDateTime(); // تحديث التاريخ والوقت للحظة الحفظ الحالية
   const productEl = document.getElementById('f_product');
   const rec = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-    date: document.getElementById('f_date').value, // يُرسل مباشرة للعمود B
-    time: document.getElementById('f_time').value, // يُرسل مباشرة للعمود C
+    date: document.getElementById('f_date').value || todayStr(),
+    time: document.getElementById('f_time').value || nowTime(),
     shift: document.getElementById('f_shift').value,
     reporter: document.getElementById('f_reporter').value.trim(),
     area: document.getElementById('f_area').value,
@@ -486,14 +476,13 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   document.getElementById('f_qty').value='';
   document.getElementById('f_cost').value='';
   document.getElementById('f_details').value='';
-  updateCurrentDateTime(); // إعادة ضبط التاريخ والوقت الحالي بعد الحفظ
+  initForm();
   renderAll();
 
   setTimeout(()=>{ msg.textContent=''; }, 4000);
 });
 
 function isThisMonth(dateStr){
-  if(!dateStr) return false;
   const d = new Date(dateStr);
   const now = new Date();
   return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
@@ -557,7 +546,7 @@ function renderHistory(){
       <div class="t-head">
         <div>
           <div class="t-title">${escapeHtml(r.product)}</div>
-          <div class="t-date">${escapeHtml(r.date)} · ${escapeHtml(r.time)} · Shift: ${escapeHtml(r.shift||'')}</div>
+          <div class="t-date">${r.date} · ${r.time} · ${escapeHtml(r.shift||'')}</div>
         </div>
         <div class="t-cost">${r.cost ? r.cost.toLocaleString('en-US')+' SAR' : ''}</div>
       </div>
@@ -682,7 +671,6 @@ function renderDashboard(){
   const buckets = buildBuckets(start, end, unit);
   const lineBase = applyFilters(records, area, product, null, null);
   const qtyPerBucket = buckets.map(b => lineBase.filter(r=>{
-    if(!r.date) return false;
     const d = new Date(r.date);
     return d >= b.start && d < b.end;
   }).reduce((s,r)=> s + (parseFloat(r.qty)||0), 0));
@@ -731,3 +719,4 @@ loadRecords();
 </script>
 </body>
 </html>
+
