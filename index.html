@@ -360,7 +360,6 @@ let pieChart, lineChart;
 // دالة جلب توقيت جدة المباشر (توقيت السعودية ثابت GMT+3 بدون أي اعتماد على إعدادات متصفح معقدة)
 function getJeddahDateTime() {
   const now = new Date();
-  // تحويل الوقت إلى التوقيت العالمي (UTC) ثم إضافة 3 ساعات لتوقيت جدة (توقيت السعودية الصيفي/الشتوي ثابت على +3)
   const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
   const jeddahDate = new Date(utc + (3 * 3600000));
 
@@ -457,8 +456,7 @@ function initForm(){
 }
 
 document.getElementById('saveBtn').addEventListener('click', async ()=>{
-  document.getElementById('f_date').value = todayStr();
-  document.getElementById('f_time').value = nowTime();
+  // تم إزالة تحديث f_date و f_time هنا لتعتمد على القيم الموجودة في الخانات بشكل طبيعي
 
   const productEl = document.getElementById('f_product');
   const rec = {
@@ -756,5 +754,3 @@ loadRecords();
 </script>
 </body>
 </html>
-
-عدل
