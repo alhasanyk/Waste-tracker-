@@ -171,15 +171,23 @@
       <div class="panel">
         <div class="panel-title">Basic Information</div>
         <div class="row2">
-          <div class="field"><label>Date</label><input type="date" id="f_date"></div>
-          <div class="field"><label>Time</label><input type="time" id="f_time"></div>
+          <div class="field"><label>Date</label><input type="date" id="f_date" readonly></div>
+          <div class="field"><label>Time</label><input type="time" id="f_time" readonly></div>
         </div>
         <div class="row2">
           <div class="field"><label>Shift</label>
-            <select id="f_shift"><option value="Morning">Morning</option><option value="Afternoon">Afternoon</option><option value="Night">Night</option></select>
+            <select id="f_shift"><option value="A">A</option><option value="A+">A+</option><option value="B">B</option></select>
           </div>
-          <div class="field"><label>Reported By</label><input type="text" id="f_reporter" placeholder="e.g., A. Mansour"></div>
+          <div class="field"><label>Reported By</label>
+            <select id="f_reporter_type">
+              <option value="">Select...</option>
+              <option value="Halawani">Halawani</option>
+              <option value="Aljadi">Aljadi</option>
+              <option value="Aljadi+">Aljadi+</option>
+            </select>
+          </div>
         </div>
+        <div class="row2" id="reporterFieldsContainer"></div>
         <div class="field"><label>Area</label>
           <select id="f_area"><option>Area 1</option><option>Area 2</option><option>Area 3</option><option>Area 4</option></select>
         </div>
@@ -188,6 +196,10 @@
 
       <div class="panel">
         <div class="panel-title">Product &amp; Stage</div>
+        <div class="field" id="lineFieldWrapper" style="display:none;">
+          <label>Line</label>
+          <div id="lineFieldContainer"></div>
+        </div>
         <div class="field">
           <label>Product / Material</label>
           <div id="productFieldContainer"></div>
@@ -200,9 +212,13 @@
           </div>
           <div class="field"><label>Waste Type</label>
             <select id="f_type">
-              <option>Raw Material</option><option>Work-in-Progress</option><option>Finished Product</option>
+              <option>Raw Material</option><option>Packaging Material</option><option>Work-in-Progress</option><option>Finished Product</option>
             </select>
           </div>
+        </div>
+        <div class="field" id="materialsFieldWrapper" style="display:none;">
+          <label>Select Material(s)</label>
+          <div id="materialsFieldContainer" style="max-height:170px; overflow-y:auto; border:1.5px solid var(--line); border-radius:7px; padding:6px 10px; background:#FBFCF9;"></div>
         </div>
       </div>
 
@@ -299,18 +315,37 @@
 </div>
 
 <script>
-const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxQMHh8mLUSjXk9MPGMpJxnDhcHK6iA_cCOjhgrAPMn450bXW5lgyRMZaMiKwH16eikrQ/exec';
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxNRtkG4v9rmzRhDp0XhYI1_60U_o1F0vftIygabPNHrppELU3h1viOFcNsoHXN2SbGAQ/exec';
+
+// Area 1 now depends on Line (L1 / L2), not just Area — replaces the old flat product list
+const AREA_LINES = {
+  "Area 1": ["L1","L2"]
+};
+const AREA_LINE_PRODUCTS = {
+  "Area 1": {
+    "L1": ["Finest Tahina 250g","Finest Tahina 350g","Finest Tahina 500g","Finest Tahina 500g x24"],
+    "L2": ["Finest Tahina 250g","Finest Tahina 350g","Finest Tahina 500g","Finest Tahina 500g x24","Finest Tahina 750g","Finest Tahina 1Kg"]
+  }
+};
+
+// From Production_BOM_Tahina.xlsx: only "Bulk Tahina" appears as the raw material
+// across all pack sizes; everything else in the BOM is a packaging component.
+const RAW_MATERIALS = [
+  "Bulk Tahina (for filling in Nakhla consumer packs)"
+];
+const PACKAGING_MATERIALS = [
+  "Tahina plastic cap 1kg","Tahina plastic cap 500g","Tahina plastic cap 250g",
+  "Tahina colored plastic jar 1 kg","Tahina colored plastic jar 500g","Tahina colored plastic jar 250g",
+  "Sealing roll (65µ) for Tahina 1 kg","Sealing roll (65µ) for Tahina 250g-500g",
+  "Front Stickers Tahina 1 kg New Local","Front Stickers Tahina 500gm New Local","Front Stickers Tahina 250 gm",
+  "Back stickers Tahina 1 kg new local","Back Stickers Tahina 500gm new sweetener","Sticks Tahina Back 250 g",
+  "Carton No. 734 Tahina 1 kg","carton number 730","carton number 747",
+  "Adhesive tape for tahini lines, large size, in car",
+  "white barcode roll","black ink for barcode printing"
+];
 
 const AREA_PRODUCTS = {
-  "Area 1": [
-    "Chocolate Halawa 250g","Chocolate Halawa 500g","Free Sugar Halawa 250g","Free Sugar Halawa 500g",
-    "Halawa 250g","Halawa 500g","Mwajaha Halawa 250g","Mwajaha Halawa 500g",
-    "pistachio Mix Halawa 250g","pistachio Mix Halawa 500g / Pistachio Halawa 500g",
-    "Halawa spread 25g x8","Halawa spread 30g x8","Halawa Bucket 2KG","Halawa Bucket 3KG",
-    "Halawa Pistachio 3KG","Halawa Special 3KG","Halawa Tin 4KG",
-    "L1 1000g X12","L1 250g X12","L1 250g X24","L1 350g X12","L1 500g X12","L1 500g X24",
-    "L2 1000g X12","L2 250g X12","L2 250g X24","L2 350g X12","L2 500g X12","L2 500g X24"
-  ],
+
   "Area 2": [
     "Al Baik tissue","M (Figs) 18g *16 new","M 40g * 12 (Wheat) Prm","M 18g * 16 SA (Wheat)",
     "Maamoul 10g *18 P","Maamoul 10g *18 SA","Maamoul 10g *20 Premium","Maamoul 10g *20 Z",
@@ -358,21 +393,64 @@ function escapeHtml(s){
 function cleanDate(val){
   if(!val) return todayStr();
   let str = String(val);
-  return str.includes('T') ? str.split('T')[0] : str;
+  if(str.includes('T')){
+    // Google Sheets sometimes stores the date as a real Date object. When that
+    // gets serialized to JSON it becomes a UTC ISO string (e.g. "...T11:30:00.000Z").
+    // Slicing that string directly (old behavior) kept the UTC date, which can be
+    // off by a day from what was actually entered. Parsing it as a Date and then
+    // reading LOCAL components converts it back to the browser's local time.
+    const d = new Date(str);
+    if(!isNaN(d)){
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const day = String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${day}`;
+    }
+    return str.split('T')[0];
+  }
+  return str;
 }
 
 function cleanTime(val){
   if(!val) return '';
   let str = String(val);
-  if(str.includes('T')) {
+  if(str.includes('T')){
+    const d = new Date(str);
+    if(!isNaN(d)){
+      const h = String(d.getHours()).padStart(2,'0');
+      const mnt = String(d.getMinutes()).padStart(2,'0');
+      return `${h}:${mnt}`;
+    }
     let t = str.split('T')[1];
     return t ? t.slice(0,5) : '';
   }
   return str;
 }
 
+function renderLineField(area){
+  const wrapper = document.getElementById('lineFieldWrapper');
+  const container = document.getElementById('lineFieldContainer');
+  if(AREA_LINES[area]){
+    wrapper.style.display = '';
+    const opts = AREA_LINES[area].map(l=>`<option value="${l}">${l}</option>`).join('');
+    container.innerHTML = `<select id="f_line">${opts}</select>`;
+    document.getElementById('f_line').addEventListener('change', ()=> renderProductField(area));
+  } else {
+    wrapper.style.display = 'none';
+    container.innerHTML = '';
+  }
+}
+
 function renderProductField(area){
   const container = document.getElementById('productFieldContainer');
+  if(AREA_LINE_PRODUCTS[area]){
+    const lineEl = document.getElementById('f_line');
+    const line = lineEl ? lineEl.value : Object.keys(AREA_LINE_PRODUCTS[area])[0];
+    const list = AREA_LINE_PRODUCTS[area][line] || [];
+    const opts = list.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+    container.innerHTML = `<select id="f_product">${opts}</select>`;
+    return;
+  }
   if(AREA_PRODUCTS[area]){
     const opts = AREA_PRODUCTS[area].map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
     container.innerHTML = `<select id="f_product">${opts}</select>`;
@@ -380,7 +458,42 @@ function renderProductField(area){
     container.innerHTML = `<input type="text" id="f_product" placeholder="Enter product / material name">`;
   }
 }
-document.getElementById('f_area').addEventListener('change', (e)=> renderProductField(e.target.value));
+document.getElementById('f_area').addEventListener('change', (e)=>{
+  renderLineField(e.target.value);
+  renderProductField(e.target.value);
+});
+
+function renderMaterialsField(type){
+  const wrapper = document.getElementById('materialsFieldWrapper');
+  const container = document.getElementById('materialsFieldContainer');
+  let list = null;
+  if(type === 'Raw Material') list = RAW_MATERIALS;
+  else if(type === 'Packaging Material') list = PACKAGING_MATERIALS;
+  if(list){
+    wrapper.style.display = '';
+    container.innerHTML = list.map(m => `
+      <label style="display:flex; align-items:flex-start; gap:8px; font-size:12.5px; padding:6px 2px; cursor:pointer;">
+        <input type="checkbox" class="materialCheckbox" value="${escapeHtml(m)}" style="margin-top:2px;">
+        <span>${escapeHtml(m)}</span>
+      </label>
+    `).join('');
+  } else {
+    wrapper.style.display = 'none';
+    container.innerHTML = '';
+  }
+}
+document.getElementById('f_type').addEventListener('change', (e)=> renderMaterialsField(e.target.value));
+
+function renderReporterFields(type){
+  const container = document.getElementById('reporterFieldsContainer');
+  if(!type){ container.innerHTML=''; return; }
+  const idLabel = (type === 'Aljadi') ? 'Iqama ID' : 'Contractor Number';
+  container.innerHTML = `
+    <div class="field"><label>Name</label><input type="text" id="f_reporter_name" placeholder="Full name"></div>
+    <div class="field"><label>${idLabel}</label><input type="text" id="f_reporter_id" placeholder="${idLabel}"></div>
+  `;
+}
+document.getElementById('f_reporter_type').addEventListener('change', (e)=> renderReporterFields(e.target.value));
 
 async function loadRecords(){
   try {
@@ -395,10 +508,12 @@ async function loadRecords(){
         shift: item.shift || '',
         reporter: item.reporter || '',
         area: item.area || '',
+        line: item.line || '',
         batch: item.batch || '',
         product: item.product || '',
         stage: item.stage || '',
         type: item.type || '',
+        materials: item.materials || '',
         qty: parseFloat(item.qty) || 0,
         unit: item.unit || 'kg',
         cost: parseFloat(item.cost) || 0,
@@ -419,22 +534,44 @@ async function loadRecords(){
 function initForm(){
   document.getElementById('f_date').value = todayStr();
   document.getElementById('f_time').value = nowTime();
+  renderLineField(document.getElementById('f_area').value);
   renderProductField(document.getElementById('f_area').value);
+  renderMaterialsField(document.getElementById('f_type').value);
 }
 
 document.getElementById('saveBtn').addEventListener('click', async ()=>{
   const productEl = document.getElementById('f_product');
+  const reporterType = document.getElementById('f_reporter_type').value;
+  const reporterNameEl = document.getElementById('f_reporter_name');
+  const reporterIdEl = document.getElementById('f_reporter_id');
+  const reporterName = reporterNameEl ? reporterNameEl.value.trim() : '';
+  const reporterId = reporterIdEl ? reporterIdEl.value.trim() : '';
+  const idLabel = (reporterType === 'Aljadi') ? 'Iqama ID' : 'Contractor Number';
+
+  const msg = document.getElementById('saveMsg');
+  if(!reporterType || !reporterName || !reporterId){
+    msg.className = 'save-msg err';
+    msg.textContent = 'Please complete the Reported By fields (type, name, and ID).';
+    return;
+  }
+
+  const lineEl = document.getElementById('f_line');
+  const materialCheckboxes = document.querySelectorAll('.materialCheckbox:checked');
+  const materials = Array.from(materialCheckboxes).map(cb=>cb.value).join('; ');
+
   const rec = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
     date: document.getElementById('f_date').value || todayStr(),
     time: document.getElementById('f_time').value || nowTime(),
     shift: document.getElementById('f_shift').value,
-    reporter: document.getElementById('f_reporter').value.trim(),
+    reporter: `${reporterType} - ${reporterName} - ${idLabel}: ${reporterId}`,
     area: document.getElementById('f_area').value,
+    line: lineEl ? lineEl.value : '',
     batch: document.getElementById('f_batch').value.trim(),
     product: productEl ? productEl.value.trim() : '',
     stage: document.getElementById('f_stage').value,
     type: document.getElementById('f_type').value,
+    materials: materials,
     qty: parseFloat(document.getElementById('f_qty').value) || 0,
     unit: document.getElementById('f_unit').value,
     cost: parseFloat(document.getElementById('f_cost').value) || 0,
@@ -444,10 +581,10 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
     status: document.getElementById('f_status').value
   };
 
-  const msg = document.getElementById('saveMsg');
+  const msg2 = document.getElementById('saveMsg');
   if(!rec.product){
-    msg.className = 'save-msg err';
-    msg.textContent = 'Please enter a product name.';
+    msg2.className = 'save-msg err';
+    msg2.textContent = 'Please enter a product name.';
     return;
   }
 
@@ -476,6 +613,8 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   document.getElementById('f_qty').value='';
   document.getElementById('f_cost').value='';
   document.getElementById('f_details').value='';
+  document.getElementById('f_reporter_type').value='';
+  renderReporterFields('');
   initForm();
   renderAll();
 
@@ -503,12 +642,18 @@ function renderStats(){
   document.getElementById('statTopProduct').textContent = productEntries.length ? productEntries[0][0] : '—';
 }
 
+function getArea1AllProducts(){
+  const byLine = AREA_LINE_PRODUCTS['Area 1'] || {};
+  return [...new Set(Object.values(byLine).flat())];
+}
+
 function getProductOptionsForArea(area){
+  if(area === 'Area 1') return getArea1AllProducts();
   if(area && AREA_PRODUCTS[area]) return AREA_PRODUCTS[area];
   if(area === 'Area 3'){
     return [...new Set(records.filter(r=>r.area==='Area 3').map(r=>r.product).filter(Boolean))];
   }
-  return [...AREA_PRODUCTS['Area 1'], ...AREA_PRODUCTS['Area 2'], ...AREA_PRODUCTS['Area 4']];
+  return [...getArea1AllProducts(), ...AREA_PRODUCTS['Area 2'], ...AREA_PRODUCTS['Area 4']];
 }
 
 function populateProductFilter(selectEl, area){
@@ -552,11 +697,13 @@ function renderHistory(){
       </div>
       <div class="t-tags">
         <span class="tag">${escapeHtml(r.area||'—')}</span>
+        ${r.line ? `<span class="tag">${escapeHtml(r.line)}</span>` : ''}
         <span class="tag">${escapeHtml(r.stage)}</span>
         <span class="tag">${escapeHtml(r.type)}</span>
         ${r.qty ? `<span class="tag">${escapeHtml(r.qty)} ${escapeHtml(r.unit)}</span>` : ''}
         <span class="tag ${r.status==='Resolved'?'status-done':'status-open'}">${escapeHtml(r.status)}</span>
       </div>
+      ${r.materials ? `<div class="t-cause"><strong>Material(s):</strong> ${escapeHtml(r.materials)}</div>` : ''}
       <div class="t-cause"><strong>Cause:</strong> ${escapeHtml(r.cause)}${r.details ? ' — ' + escapeHtml(r.details) : ''}</div>
       <div class="t-meta">${r.batch ? 'Batch: '+escapeHtml(r.batch) : ''}${(r.batch && r.reporter) ? ' · ' : ''}${r.reporter ? 'Reported by: '+escapeHtml(r.reporter) : ''}</div>
     </div>
@@ -719,4 +866,3 @@ loadRecords();
 </script>
 </body>
 </html>
-
