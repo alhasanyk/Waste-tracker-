@@ -2286,8 +2286,17 @@ document.getElementById('scanBtn')
     { facingMode:"environment" },
 
     {
-      fps:10,
-      qrbox:220
+      fps: 10,
+      qrbox: 250,
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.QR_CODE,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E
+      ]
     },
 
     onScanSuccess,
@@ -2335,79 +2344,15 @@ function onScanSuccess(decodedText){
   const code =
     decodedText.trim();
 
-  const product =
-    ITEM_NUMBER_TO_PRODUCT[code];
+  document.getElementById(
+    'f_batch'
+  ).value =
+    code;
 
-  if(product){
-
-    let foundLine = null;
-
-    Object.keys(
-      AREA_LINE_PRODUCTS['Area 1']
-    ).forEach(line=>{
-
-      if(
-        AREA_LINE_PRODUCTS['Area 1'][line]
-          .includes(product)
-      ){
-        foundLine = line;
-      }
-    });
-
-    if(foundLine){
-
-      document.getElementById(
-        'f_area'
-      ).value =
-        'Area 1';
-
-      renderLineField(
-        'Area 1'
-      );
-
-      document.getElementById(
-        'f_line'
-      ).value =
-        foundLine;
-
-      renderProductField(
-        'Area 1'
-      );
-
-      const prodEl =
-        document.getElementById(
-          'f_product'
-        );
-
-      if(prodEl)
-        prodEl.value =
-          product;
-
-      renderMaterialsField(
-        document.getElementById(
-          'f_type'
-        ).value,
-        product
-      );
-    }
-
-    document.getElementById(
-      'scanStatus'
-    ).textContent =
-      `Matched: ${product}`;
-
-  } else {
-
-    document.getElementById(
-      'f_batch'
-    ).value =
-      code;
-
-    document.getElementById(
-      'scanStatus'
-    ).textContent =
-      `Scanned "${code}" — no matching item number found, added to Batch/Lot Number instead.`;
-  }
+  document.getElementById(
+    'scanStatus'
+  ).textContent =
+    `Scanned Batch: ${code}`;
 
   setTimeout(
     closeScan,
