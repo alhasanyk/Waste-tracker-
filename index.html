@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Waste Tracker — Halwani Bros</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <style>
   :root{
     --green-900: #163C1B;
@@ -139,6 +140,15 @@
   .panel h3{ font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--green-700); margin-bottom:6px; text-transform:uppercase;}
   .panel .chart-note{ font-size:10.5px; color:var(--muted); margin-bottom:12px; }
 
+  .bom-scroll{ overflow-x:auto; border:1.5px solid var(--green-600); border-radius:8px; background:#FBFCF9; }
+  table.bom-table{ border-collapse:collapse; width:100%; }
+  table.bom-table td.bom-cell{ border:1px solid var(--line); padding:8px 6px; text-align:center; vertical-align:top; min-width:92px; }
+  .bom-name{ font-size:10px; font-weight:600; color:var(--ink); line-height:1.3; margin-bottom:6px; min-height:26px; }
+  .materialCheckbox{ width:16px; height:16px; }
+  .materialQty{ padding:6px 4px; border:1.5px solid var(--line); border-radius:6px; font-size:11.5px; text-align:center; }
+  .materialQty:disabled{ background:var(--surface,#F3F6F0); color:var(--muted); }
+  #bomCostPreview{ margin-top:10px; font-size:12.5px; font-weight:700; color:var(--green-700); }
+
   .hidden{ display:none !important; }
 </style>
 </head>
@@ -168,6 +178,19 @@
   <main>
     <!-- FORM TAB -->
     <section id="tab-form">
+      <button type="button" id="scanBtn" style="width:100%; padding:12px; margin-bottom:14px; border:1.5px solid var(--green-600); background:var(--green-100); color:var(--green-700); font-family:inherit; font-size:13px; font-weight:700; border-radius:8px; cursor:pointer;">📷 Scan Barcode to Auto-Fill</button>
+
+      <div id="scanModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.78); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:12px; padding:14px; width:92%; max-width:480px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <strong style="font-size:13px; color:var(--green-700);">Scan Barcode</strong>
+            <button type="button" id="closeScanBtn" style="border:none; background:none; font-size:20px; cursor:pointer; color:var(--muted); line-height:1;">✕</button>
+          </div>
+          <div id="scanner-container" style="width:100%;"></div>
+          <div id="scanStatus" style="font-size:11.5px; color:var(--muted); margin-top:8px; text-align:center;"></div>
+        </div>
+      </div>
+
       <div class="panel">
         <div class="panel-title">Basic Information</div>
         <div class="row2">
@@ -216,13 +239,10 @@
             </select>
           </div>
         </div>
-        <div class="field" id="materialsFieldWrapper" style="display:none;">
-          <label>Select Material(s)</label>
-          <div id="materialsFieldContainer" style="max-height:170px; overflow-y:auto; border:1.5px solid var(--line); border-radius:7px; padding:6px 10px; background:#FBFCF9;"></div>
-        </div>
+        <div class="field" id="materialsFieldWrapper" style="display:none;"></div>
       </div>
 
-      <div class="panel">
+      <div class="panel" id="qtyCostPanel">
         <div class="panel-title">Quantity &amp; Cost</div>
         <div class="row2">
           <div class="field"><label>Quantity</label><input type="number" step="any" id="f_qty" placeholder="0"></div>
@@ -245,8 +265,13 @@
             <option>Incorrect Process Settings</option>
             <option>Storage Damage</option>
             <option>Packaging / Labeling Error</option>
+            <option value="MR">MR</option>
             <option>Other</option>
           </select>
+        </div>
+        <div class="field" id="mrFieldWrapper" style="display:none;">
+          <label>MR Number</label>
+          <input type="text" id="f_mr_number" placeholder="Enter MR number">
         </div>
         <div class="field"><label>Additional Details</label><textarea id="f_details" placeholder="Briefly describe the incident..."></textarea></div>
         <div class="row2">
@@ -255,6 +280,18 @@
           </div>
           <div class="field"><label>Status</label>
             <select id="f_status"><option value="Resolved">Resolved</option><option value="Under Review">Under Review</option></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Photo</div>
+        <div class="field">
+          <label>Take a Photo of the Waste (optional)</label>
+          <input type="file" id="f_photo" accept="image/*" capture="environment">
+          <div id="photoPreviewWrap" style="display:none; margin-top:10px;">
+            <img id="photoPreview" style="max-width:100%; border-radius:8px; border:1.5px solid var(--line);">
+            <button type="button" id="removePhotoBtn" style="margin-top:6px; border:1.5px solid var(--red); background:var(--white); color:var(--red); font-family:inherit; font-size:11.5px; font-weight:700; padding:6px 12px; border-radius:7px; cursor:pointer;">Remove Photo</button>
           </div>
         </div>
       </div>
@@ -323,26 +360,63 @@ const AREA_LINES = {
 };
 const AREA_LINE_PRODUCTS = {
   "Area 1": {
-    "L1": ["Finest Tahina 250g","Finest Tahina 350g","Finest Tahina 500g","Finest Tahina 500g x24"],
-    "L2": ["Finest Tahina 250g","Finest Tahina 350g","Finest Tahina 500g","Finest Tahina 500g x24","Finest Tahina 750g","Finest Tahina 1Kg"]
+    "L1": ["Finest Tahina 250g","Finest Tahina 250g x 12","Finest Tahina 350g","Finest Tahina 500g","Finest Tahina 500g x12","Finest Tahina 500g x24"],
+    "L2": ["Finest Tahina 250g","Finest Tahina 250g x 12","Finest Tahina 350g","Finest Tahina 500g","Finest Tahina 500g x12","Finest Tahina 500g x24","Finest Tahina 750g","Finest Tahina 1Kg"]
   }
 };
 
-// From Production_BOM_Tahina.xlsx: only "Bulk Tahina" appears as the raw material
-// across all pack sizes; everything else in the BOM is a packaging component.
-const RAW_MATERIALS = [
-  "Bulk Tahina (for filling in Nakhla consumer packs)"
-];
-const PACKAGING_MATERIALS = [
-  "Tahina plastic cap 1kg","Tahina plastic cap 500g","Tahina plastic cap 250g",
-  "Tahina colored plastic jar 1 kg","Tahina colored plastic jar 500g","Tahina colored plastic jar 250g",
-  "Sealing roll (65µ) for Tahina 1 kg","Sealing roll (65µ) for Tahina 250g-500g",
-  "Front Stickers Tahina 1 kg New Local","Front Stickers Tahina 500gm New Local","Front Stickers Tahina 250 gm",
-  "Back stickers Tahina 1 kg new local","Back Stickers Tahina 500gm new sweetener","Sticks Tahina Back 250 g",
-  "Carton No. 734 Tahina 1 kg","carton number 730","carton number 747",
-  "Adhesive tape for tahini lines, large size, in car",
-  "white barcode roll","black ink for barcode printing"
-];
+// Item numbers — only these 4 are confirmed for now; others left blank until provided.
+const PRODUCT_ITEM_NUMBER = {
+  "Finest Tahina 1Kg": "126039",
+  "Finest Tahina 500g x24": "126040",
+  "Finest Tahina 500g x12": "126037",
+  "Finest Tahina 250g x 12": "126048"
+};
+
+// Per-product BOM, taken from the 3 tables in Production_BOM_Tahina.xlsx
+// ("1 Kg", "500gm", "250gm"). "Finest Tahina 500g x24" shares the "500gm" table.
+// NOTE: the Excel file has no table for 350g, so that size has no BOM yet.
+const PRODUCT_BOM = {
+  "Finest Tahina 1Kg": {
+    raw: ["Bulk Tahina (for filling in Nakhla consumer packs"],
+    packaging: [
+      "Tahina plastic cap 1kg","Tahina colored plastic jar 1 kg","Sealing roll (65µ) for Tahina 1 kg",
+      "Front Stickers Tahina 1 kg New Local","Back stickers Tahina 1 kg new local","Carton No. 734 Tahina 1 kg",
+      "Adhesive tape for tahini lines, large size, in car","white barcode roll","black ink for barcode printing"
+    ]
+  },
+  "Finest Tahina 500g": {
+    raw: ["Bulk Tahina (for filling in Nakhla consumer packs"],
+    packaging: [
+      "Tahina plastic cap 500g","Tahina colored plastic jar 500g","Sealing roll (65µ) for Tahina 250g-500g",
+      "Front Stickers Tahina 500gm New Local","Back Stickers Tahina 500gm new sweetener","carton number 730",
+      "black ink for barcode printing","white barcode roll","Adhesive tape for tahini lines, large size, in car"
+    ]
+  },
+  "Finest Tahina 250g": {
+    raw: ["Bulk Tahina (for filling in Nakhla consumer packs"],
+    packaging: [
+      "Tahina plastic cap 250g","Tahina colored plastic jar 250g","Sealing roll (65µ) for Tahina 250g-500g",
+      "Front Stickers Tahina 250 gm","Sticks Tahina Back 250 g","carton number 747",
+      "Adhesive tape for tahini lines, large size, in car","white barcode roll","black ink for barcode printing"
+    ]
+  }
+};
+PRODUCT_BOM["Finest Tahina 500g x24"] = PRODUCT_BOM["Finest Tahina 500g"]; // same table in the Excel file
+PRODUCT_BOM["Finest Tahina 500g x12"] = PRODUCT_BOM["Finest Tahina 500g"]; // same base pack, different case count
+PRODUCT_BOM["Finest Tahina 250g x 12"] = PRODUCT_BOM["Finest Tahina 250g"]; // same base pack, different case count
+
+// Reverse lookup for the barcode scanner: item number -> product name
+const ITEM_NUMBER_TO_PRODUCT = {};
+Object.entries(PRODUCT_ITEM_NUMBER).forEach(([name, num])=>{ ITEM_NUMBER_TO_PRODUCT[num] = name; });
+
+// Wholesale unit prices (SAR) used to auto-calculate packaging waste cost.
+// The Excel BOM has no price column, so these start at 0 — update with real
+// wholesale prices per unit for accurate auto-costing.
+const MATERIAL_UNIT_PRICE = {};
+Object.values(PRODUCT_BOM).forEach(bom=>{
+  [...bom.raw, ...bom.packaging].forEach(name=>{ if(!(name in MATERIAL_UNIT_PRICE)) MATERIAL_UNIT_PRICE[name] = 0; });
+});
 
 const AREA_PRODUCTS = {
 
@@ -441,6 +515,11 @@ function renderLineField(area){
   }
 }
 
+function getCurrentProduct(){
+  const el = document.getElementById('f_product');
+  return el ? el.value : '';
+}
+
 function renderProductField(area){
   const container = document.getElementById('productFieldContainer');
   if(AREA_LINE_PRODUCTS[area]){
@@ -449,40 +528,139 @@ function renderProductField(area){
     const list = AREA_LINE_PRODUCTS[area][line] || [];
     const opts = list.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
     container.innerHTML = `<select id="f_product">${opts}</select>`;
-    return;
-  }
-  if(AREA_PRODUCTS[area]){
+  } else if(AREA_PRODUCTS[area]){
     const opts = AREA_PRODUCTS[area].map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
     container.innerHTML = `<select id="f_product">${opts}</select>`;
   } else {
     container.innerHTML = `<input type="text" id="f_product" placeholder="Enter product / material name">`;
   }
+  const productEl = document.getElementById('f_product');
+  if(productEl){
+    productEl.addEventListener('change', ()=> renderMaterialsField(document.getElementById('f_type').value, getCurrentProduct()));
+    productEl.addEventListener('input', ()=> renderMaterialsField(document.getElementById('f_type').value, getCurrentProduct()));
+  }
 }
 document.getElementById('f_area').addEventListener('change', (e)=>{
   renderLineField(e.target.value);
   renderProductField(e.target.value);
+  renderMaterialsField(document.getElementById('f_type').value, getCurrentProduct());
 });
 
-function renderMaterialsField(type){
-  const wrapper = document.getElementById('materialsFieldWrapper');
-  const container = document.getElementById('materialsFieldContainer');
-  let list = null;
-  if(type === 'Raw Material') list = RAW_MATERIALS;
-  else if(type === 'Packaging Material') list = PACKAGING_MATERIALS;
-  if(list){
-    wrapper.style.display = '';
-    container.innerHTML = list.map(m => `
-      <label style="display:flex; align-items:flex-start; gap:8px; font-size:12.5px; padding:6px 2px; cursor:pointer;">
-        <input type="checkbox" class="materialCheckbox" value="${escapeHtml(m)}" style="margin-top:2px;">
-        <span>${escapeHtml(m)}</span>
-      </label>
-    `).join('');
-  } else {
-    wrapper.style.display = 'none';
-    container.innerHTML = '';
-  }
+function toggleQtyCostPanel(type){
+  const panel = document.getElementById('qtyCostPanel');
+  panel.style.display = (type === 'Packaging Material' || type === 'Raw Material') ? 'none' : '';
 }
-document.getElementById('f_type').addEventListener('change', (e)=> renderMaterialsField(e.target.value));
+
+function recalcBomCost(){
+  const preview = document.getElementById('bomCostPreview');
+  if(!preview) return;
+  let total = 0;
+  document.querySelectorAll('.materialCheckbox:checked').forEach(cb=>{
+    const idx = cb.dataset.idx;
+    const qtyInput = document.querySelector(`.materialQty[data-idx="${idx}"]`);
+    const qty = qtyInput ? (parseFloat(qtyInput.value) || 0) : 0;
+    const price = MATERIAL_UNIT_PRICE[cb.value] || 0;
+    total += qty * price;
+  });
+  preview.textContent = `Estimated Cost (auto): ${total.toLocaleString('en-US',{maximumFractionDigits:2})} SAR`;
+  preview.dataset.total = total;
+}
+
+function renderMaterialsField(type, product){
+  const wrapper = document.getElementById('materialsFieldWrapper');
+  toggleQtyCostPanel(type);
+
+  if(type !== 'Raw Material' && type !== 'Packaging Material'){
+    wrapper.style.display = 'none';
+    wrapper.innerHTML = '';
+    return;
+  }
+
+  const bom = PRODUCT_BOM[product];
+  if(!bom){
+    wrapper.style.display = '';
+    wrapper.innerHTML = `<label>Select Material(s)</label><div class="empty" style="padding:14px; font-size:11.5px;">No BOM data available yet for "${escapeHtml(product||'this product')}".</div>`;
+    return;
+  }
+
+  const items = type === 'Raw Material' ? bom.raw : bom.packaging;
+  wrapper.style.display = '';
+  wrapper.innerHTML = `
+    <label>Select Material(s)</label>
+    <div class="bom-scroll">
+      <table class="bom-table">
+        <tr>
+          ${items.map((m,i)=>`
+            <td class="bom-cell">
+              <div class="bom-name">${escapeHtml(m)}</div>
+              <input type="checkbox" class="materialCheckbox" data-idx="${i}" value="${escapeHtml(m)}">
+            </td>
+          `).join('')}
+        </tr>
+        <tr>
+          ${items.map((m,i)=>`
+            <td class="bom-cell">
+              <input type="number" step="any" class="materialQty" data-idx="${i}" placeholder="Qty" disabled>
+            </td>
+          `).join('')}
+        </tr>
+      </table>
+    </div>
+    <div id="bomCostPreview" data-total="0">Estimated Cost (auto): 0 SAR</div>
+  `;
+
+  wrapper.querySelectorAll('.materialCheckbox').forEach(cb=>{
+    cb.addEventListener('change', (e)=>{
+      const idx = e.target.dataset.idx;
+      const qtyInput = wrapper.querySelector(`.materialQty[data-idx="${idx}"]`);
+      qtyInput.disabled = !e.target.checked;
+      if(!e.target.checked) qtyInput.value = '';
+      recalcBomCost();
+    });
+  });
+  wrapper.querySelectorAll('.materialQty').forEach(inp=>{
+    inp.addEventListener('input', recalcBomCost);
+  });
+  recalcBomCost();
+}
+document.getElementById('f_type').addEventListener('change', (e)=> renderMaterialsField(e.target.value, getCurrentProduct()));
+
+let photoBase64 = '';
+
+function compressImage(file, maxWidth){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.65));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+document.getElementById('f_photo').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  photoBase64 = await compressImage(file, 1024);
+  document.getElementById('photoPreview').src = photoBase64;
+  document.getElementById('photoPreviewWrap').style.display = '';
+});
+document.getElementById('removePhotoBtn').addEventListener('click', ()=>{
+  photoBase64 = '';
+  document.getElementById('f_photo').value = '';
+  document.getElementById('photoPreviewWrap').style.display = 'none';
+});
 
 function renderReporterFields(type){
   const container = document.getElementById('reporterFieldsContainer');
@@ -511,6 +689,7 @@ async function loadRecords(){
         line: item.line || '',
         batch: item.batch || '',
         product: item.product || '',
+        itemNumber: item.itemNumber || '',
         stage: item.stage || '',
         type: item.type || '',
         materials: item.materials || '',
@@ -518,6 +697,8 @@ async function loadRecords(){
         unit: item.unit || 'kg',
         cost: parseFloat(item.cost) || 0,
         cause: item.cause || '',
+        mrNumber: item.mrNumber || '',
+        photo: item.photo || '',
         details: item.details || '',
         action: item.action || '',
         status: item.status || 'Resolved'
@@ -531,12 +712,20 @@ async function loadRecords(){
   renderAll();
 }
 
+function toggleMRField(cause){
+  const wrapper = document.getElementById('mrFieldWrapper');
+  wrapper.style.display = (cause === 'MR') ? '' : 'none';
+  if(cause !== 'MR'){ const inp = document.getElementById('f_mr_number'); if(inp) inp.value=''; }
+}
+document.getElementById('f_cause').addEventListener('change', (e)=> toggleMRField(e.target.value));
+
 function initForm(){
   document.getElementById('f_date').value = todayStr();
   document.getElementById('f_time').value = nowTime();
   renderLineField(document.getElementById('f_area').value);
   renderProductField(document.getElementById('f_area').value);
-  renderMaterialsField(document.getElementById('f_type').value);
+  renderMaterialsField(document.getElementById('f_type').value, getCurrentProduct());
+  toggleMRField(document.getElementById('f_cause').value);
 }
 
 document.getElementById('saveBtn').addEventListener('click', async ()=>{
@@ -556,8 +745,18 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   }
 
   const lineEl = document.getElementById('f_line');
+  const wasteType = document.getElementById('f_type').value;
   const materialCheckboxes = document.querySelectorAll('.materialCheckbox:checked');
-  const materials = Array.from(materialCheckboxes).map(cb=>cb.value).join('; ');
+  const materials = Array.from(materialCheckboxes).map(cb=>{
+    const idx = cb.dataset.idx;
+    const qtyInput = document.querySelector(`.materialQty[data-idx="${idx}"]`);
+    const qty = qtyInput ? qtyInput.value : '';
+    return qty ? `${cb.value}: ${qty}` : cb.value;
+  }).join('; ');
+  const bomCostPreview = document.getElementById('bomCostPreview');
+  const autoBomCost = bomCostPreview ? parseFloat(bomCostPreview.dataset.total || '0') : 0;
+  const usesBom = (wasteType === 'Packaging Material' || wasteType === 'Raw Material');
+  const productName = productEl ? productEl.value.trim() : '';
 
   const rec = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
@@ -568,17 +767,20 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
     area: document.getElementById('f_area').value,
     line: lineEl ? lineEl.value : '',
     batch: document.getElementById('f_batch').value.trim(),
-    product: productEl ? productEl.value.trim() : '',
+    product: productName,
+    itemNumber: PRODUCT_ITEM_NUMBER[productName] || '',
     stage: document.getElementById('f_stage').value,
-    type: document.getElementById('f_type').value,
+    type: wasteType,
     materials: materials,
-    qty: parseFloat(document.getElementById('f_qty').value) || 0,
+    qty: usesBom ? 0 : (parseFloat(document.getElementById('f_qty').value) || 0),
     unit: document.getElementById('f_unit').value,
-    cost: parseFloat(document.getElementById('f_cost').value) || 0,
+    cost: usesBom ? autoBomCost : (parseFloat(document.getElementById('f_cost').value) || 0),
     cause: document.getElementById('f_cause').value,
+    mrNumber: document.getElementById('f_cause').value === 'MR' ? document.getElementById('f_mr_number').value.trim() : '',
     details: document.getElementById('f_details').value.trim(),
     action: document.getElementById('f_action').value,
-    status: document.getElementById('f_status').value
+    status: document.getElementById('f_status').value,
+    photo: photoBase64 || ''
   };
 
   const msg2 = document.getElementById('saveMsg');
@@ -614,6 +816,9 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   document.getElementById('f_cost').value='';
   document.getElementById('f_details').value='';
   document.getElementById('f_reporter_type').value='';
+  photoBase64 = '';
+  document.getElementById('f_photo').value = '';
+  document.getElementById('photoPreviewWrap').style.display = 'none';
   renderReporterFields('');
   initForm();
   renderAll();
@@ -690,7 +895,7 @@ function renderHistory(){
     <div class="ticket">
       <div class="t-head">
         <div>
-          <div class="t-title">${escapeHtml(r.product)}</div>
+          <div class="t-title">${escapeHtml(r.product)}${r.itemNumber ? ` <span style="font-weight:400; color:var(--muted); font-size:11px;">#${escapeHtml(r.itemNumber)}</span>` : ''}</div>
           <div class="t-date">${r.date} · ${r.time} · ${escapeHtml(r.shift||'')}</div>
         </div>
         <div class="t-cost">${r.cost ? r.cost.toLocaleString('en-US')+' SAR' : ''}</div>
@@ -704,8 +909,9 @@ function renderHistory(){
         <span class="tag ${r.status==='Resolved'?'status-done':'status-open'}">${escapeHtml(r.status)}</span>
       </div>
       ${r.materials ? `<div class="t-cause"><strong>Material(s):</strong> ${escapeHtml(r.materials)}</div>` : ''}
-      <div class="t-cause"><strong>Cause:</strong> ${escapeHtml(r.cause)}${r.details ? ' — ' + escapeHtml(r.details) : ''}</div>
+      <div class="t-cause"><strong>Cause:</strong> ${escapeHtml(r.cause)}${r.mrNumber ? ' (MR #' + escapeHtml(r.mrNumber) + ')' : ''}${r.details ? ' — ' + escapeHtml(r.details) : ''}</div>
       <div class="t-meta">${r.batch ? 'Batch: '+escapeHtml(r.batch) : ''}${(r.batch && r.reporter) ? ' · ' : ''}${r.reporter ? 'Reported by: '+escapeHtml(r.reporter) : ''}</div>
+      ${r.photo ? `<a href="${escapeHtml(r.photo)}" target="_blank" style="display:inline-block; margin-top:8px; font-size:11px; font-weight:700; color:var(--green-700);">📷 View Photo</a>` : ''}
     </div>
   `).join('');
 }
@@ -859,6 +1065,61 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
     }
   });
 });
+
+/* ---------- Barcode scanner ---------- */
+let html5QrCode = null;
+
+document.getElementById('scanBtn').addEventListener('click', ()=>{
+  document.getElementById('scanModal').style.display = 'flex';
+  document.getElementById('scanStatus').textContent = 'Point the camera at the barcode...';
+  if(typeof Html5Qrcode === 'undefined'){
+    document.getElementById('scanStatus').textContent = 'Scanner library failed to load. Check your connection and try again.';
+    return;
+  }
+  html5QrCode = new Html5Qrcode("scanner-container");
+  html5QrCode.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: 220 },
+    onScanSuccess,
+    ()=>{ /* ignore per-frame decode misses */ }
+  ).catch(err=>{
+    document.getElementById('scanStatus').textContent = 'Camera access failed: ' + err;
+  });
+});
+
+function closeScan(){
+  if(html5QrCode){
+    html5QrCode.stop().then(()=>html5QrCode.clear()).catch(()=>{});
+  }
+  document.getElementById('scanModal').style.display = 'none';
+}
+document.getElementById('closeScanBtn').addEventListener('click', closeScan);
+
+function onScanSuccess(decodedText){
+  const code = decodedText.trim();
+  const product = ITEM_NUMBER_TO_PRODUCT[code];
+
+  if(product){
+    let foundLine = null;
+    Object.keys(AREA_LINE_PRODUCTS['Area 1']).forEach(line=>{
+      if(AREA_LINE_PRODUCTS['Area 1'][line].includes(product)) foundLine = line;
+    });
+    if(foundLine){
+      document.getElementById('f_area').value = 'Area 1';
+      renderLineField('Area 1');
+      document.getElementById('f_line').value = foundLine;
+      renderProductField('Area 1');
+      const prodEl = document.getElementById('f_product');
+      if(prodEl) prodEl.value = product;
+      renderMaterialsField(document.getElementById('f_type').value, product);
+    }
+    document.getElementById('scanStatus').textContent = `Matched: ${product}`;
+  } else {
+    document.getElementById('f_batch').value = code;
+    document.getElementById('scanStatus').textContent = `Scanned "${code}" — no matching item number found, added to Batch/Lot Number instead.`;
+  }
+  setTimeout(closeScan, 900);
+}
 
 initForm();
 initCharts();
