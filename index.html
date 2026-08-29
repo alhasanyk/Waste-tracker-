@@ -6,7 +6,6 @@
 <title>Waste Tracker — Halwani Bros</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
 <style>
   :root{
     --green-900: #163C1B;
@@ -174,16 +173,15 @@
 
   <main>
     <section id="tab-form">
-      <button type="button" id="scanBtn" style="width:100%; padding:12px; margin-bottom:14px; border:1.5px solid var(--green-600); background:var(--green-100); color:var(--green-700); font-family:inherit; font-size:13px; font-weight:700; border-radius:8px; cursor:pointer;">📷 Scan Sticker (Text &amp; Barcode)</button>
+      <button type="button" id="scanBtn" style="width:100%; padding:12px; margin-bottom:14px; border:1.5px solid var(--green-600); background:var(--green-100); color:var(--green-700); font-family:inherit; font-size:13px; font-weight:700; border-radius:8px; cursor:pointer;">📷 Scan Barcode to Auto-Fill</button>
 
       <div id="scanModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.78); z-index:9999; align-items:center; justify-content:center;">
-        <div style="background:#fff; border-radius:12px; padding:14px; width:92%; max-width:480px; text-align:center;">
+        <div style="background:#fff; border-radius:12px; padding:14px; width:92%; max-width:480px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-            <strong style="font-size:13px; color:var(--green-700);">Scan Sticker</strong>
+            <strong style="font-size:13px; color:var(--green-700);">Scan Barcode</strong>
             <button type="button" id="closeScanBtn" style="border:none; background:none; font-size:20px; cursor:pointer; color:var(--muted); line-height:1;">✕</button>
           </div>
           <div id="scanner-container" style="width:100%;"></div>
-          <button type="button" id="captureOcrBtn" style="width:100%; margin-top:10px; padding:10px; background:var(--green-600); color:#fff; border:none; border-radius:7px; font-weight:700; cursor:pointer;">Capture &amp; Read Text</button>
           <div id="scanStatus" style="font-size:11.5px; color:var(--muted); margin-top:8px; text-align:center;"></div>
         </div>
       </div>
@@ -349,6 +347,7 @@
 <script>
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby8hOju5U-3Fg1g0WOrmpjKd-0X8mbtjaRMF5u247cXgnpAtgy2DKdAqnQRf0Z4Ba3NNw/exec';
 
+// Area 1 now depends on Line (L1 / L2), not just Area — replaces the old flat product list
 const AREA_LINES = {
   "Area 1": ["L1","L2"]
 };
@@ -398,6 +397,11 @@ PRODUCT_BOM["Finest Tahina 500g x24"] = PRODUCT_BOM["Finest Tahina 500g"];
 PRODUCT_BOM["Finest Tahina 500g x12"] = PRODUCT_BOM["Finest Tahina 500g"];
 PRODUCT_BOM["Finest Tahina 250g x 12"] = PRODUCT_BOM["Finest Tahina 250g"];
 
+const ITEM_NUMBER_TO_PRODUCT = {};
+Object.entries(PRODUCT_ITEM_NUMBER).forEach(([name, num])=>{
+  ITEM_NUMBER_TO_PRODUCT[num] = name;
+});
+
 const MATERIAL_UNIT_PRICE = {};
 Object.values(PRODUCT_BOM).forEach(bom=>{
   [...bom.raw, ...bom.packaging].forEach(name=>{
@@ -406,6 +410,7 @@ Object.values(PRODUCT_BOM).forEach(bom=>{
 });
 
 const AREA_PRODUCTS = {
+
   "Area 2": [
     "Al Baik tissue","M (Figs) 18g *16 new","M 40g * 12 (Wheat) Prm","M 18g * 16 SA (Wheat)",
     "Maamoul 10g *18 P","Maamoul 10g *18 SA","Maamoul 10g *20 Premium","Maamoul 10g *20 Z",
@@ -419,6 +424,7 @@ const AREA_PRODUCTS = {
     "Mamoul Box 32gX12 old","Mamoul Date 40g old","oldMamoul 40 gX12","oldMamoul Box 32gX12",
     "oldMamoul Box 40gX12(1)","oldMamoul Box25gX32","oldMamoul Nutsigs 40gX12","oldMamoul Date&eat 40gX12"
   ],
+
   "Area 4": [
     "Apricot Jam 30g X 16","Cheese 25g X 16","Honey 30g X 16","Orange Jam 30g X 16","Strawberry Jam 30g X 16",
     "Black Olive 325g","Black Olive 650g","Black Olive Brine 240g","Blackstrap Molasses 450g","Blackstrap Molasses 900g",
@@ -446,48 +452,106 @@ const AREA_COLORS = {
 
 const AREA_ORDER = ["Area 1","Area 2","Area 3","Area 4"];
 
+// Generalized product -> {area, line} lookup, built from AREA_LINE_PRODUCTS and AREA_PRODUCTS.
+// A product can appear under more than one line (e.g. Tahina products in both L1 and L2) —
+// in that case we auto-fill the area but leave the line for the user to pick, since it isn't unique.
+const PRODUCT_TO_AREA_LINE = {};
+
+Object.entries(AREA_LINE_PRODUCTS).forEach(([area, lines])=>{
+  Object.entries(lines).forEach(([line, products])=>{
+    products.forEach(p=>{
+      if(!PRODUCT_TO_AREA_LINE[p]) PRODUCT_TO_AREA_LINE[p] = [];
+      PRODUCT_TO_AREA_LINE[p].push({area, line});
+    });
+  });
+});
+
+Object.entries(AREA_PRODUCTS).forEach(([area, products])=>{
+  products.forEach(p=>{
+    if(!PRODUCT_TO_AREA_LINE[p]) PRODUCT_TO_AREA_LINE[p] = [];
+    PRODUCT_TO_AREA_LINE[p].push({area, line:''});
+  });
+});
+
 let records = [];
 let pieChart, lineChart;
 
-function todayStr(){ return new Date().toISOString().slice(0,10); }
-function nowTime(){ return new Date().toTimeString().slice(0,5); }
+function todayStr(){
+  return new Date().toISOString().slice(0,10);
+}
+
+function nowTime(){
+  return new Date().toTimeString().slice(0,5);
+}
 
 function escapeHtml(s){
   if(!s) return '';
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#39;'
+  }[c]));
 }
 
 function cleanDate(val){
   if(!val) return todayStr();
   let str = String(val);
+
   if(str.includes('T')){
     const d = new Date(str);
-    if(!isNaN(d)) return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+    if(!isNaN(d)){
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const day = String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${day}`;
+    }
+
     return str.split('T')[0];
   }
+
   return str;
 }
 
 function cleanTime(val){
   if(!val) return '';
+
   let str = String(val);
+
   if(str.includes('T')){
     const d = new Date(str);
-    if(!isNaN(d)) return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+
+    if(!isNaN(d)){
+      const h = String(d.getHours()).padStart(2,'0');
+      const mnt = String(d.getMinutes()).padStart(2,'0');
+      return `${h}:${mnt}`;
+    }
+
     let t = str.split('T')[1];
     return t ? t.slice(0,5) : '';
   }
+
   return str;
 }
 
 function renderLineField(area){
   const wrapper = document.getElementById('lineFieldWrapper');
   const container = document.getElementById('lineFieldContainer');
+
   if(AREA_LINES[area]){
     wrapper.style.display = '';
-    const opts = AREA_LINES[area].map(l=>`<option value="${l}">${l}</option>`).join('');
+
+    const opts = AREA_LINES[area]
+      .map(l=>`<option value="${l}">${l}</option>`)
+      .join('');
+
     container.innerHTML = `<select id="f_line">${opts}</select>`;
-    document.getElementById('f_line').addEventListener('change', ()=> renderProductField(area));
+
+    document.getElementById('f_line')
+      .addEventListener('change', ()=> renderProductField(area));
+
   } else {
     wrapper.style.display = 'none';
     container.innerHTML = '';
@@ -501,273 +565,657 @@ function getCurrentProduct(){
 
 function renderProductField(area){
   const container = document.getElementById('productFieldContainer');
+
   if(AREA_LINE_PRODUCTS[area]){
     const lineEl = document.getElementById('f_line');
     const line = lineEl ? lineEl.value : Object.keys(AREA_LINE_PRODUCTS[area])[0];
     const list = AREA_LINE_PRODUCTS[area][line] || [];
-    const opts = list.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+
+    const opts = list
+      .map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`)
+      .join('');
+
     container.innerHTML = `<select id="f_product">${opts}</select>`;
+
   } else if(AREA_PRODUCTS[area]){
-    const opts = AREA_PRODUCTS[area].map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+
+    const opts = AREA_PRODUCTS[area]
+      .map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`)
+      .join('');
+
     container.innerHTML = `<select id="f_product">${opts}</select>`;
+
   } else {
-    container.innerHTML = `<input type="text" id="f_product" placeholder="Enter product / material name">`;
+
+    container.innerHTML =
+      `<input type="text" id="f_product" placeholder="Enter product / material name">`;
+  }
+
+  const productEl = document.getElementById('f_product');
+
+  if(productEl){
+    productEl.addEventListener('change', ()=>
+      renderMaterialsField(
+        document.getElementById('f_type').value,
+        getCurrentProduct()
+      )
+    );
+
+    productEl.addEventListener('input', ()=>
+      renderMaterialsField(
+        document.getElementById('f_type').value,
+        getCurrentProduct()
+      )
+    );
   }
 }
 
 document.getElementById('f_area').addEventListener('change', (e)=>{
   renderLineField(e.target.value);
   renderProductField(e.target.value);
-  renderMaterialsField(document.getElementById('f_type').value, getCurrentProduct());
+  renderMaterialsField(
+    document.getElementById('f_type').value,
+    getCurrentProduct()
+  );
 });
 
 function toggleQtyCostPanel(type){
   const panel = document.getElementById('qtyCostPanel');
-  panel.style.display = (type === 'Packaging Material' || type === 'Raw Material') ? 'none' : '';
+
+  panel.style.display =
+    (type === 'Packaging Material' || type === 'Raw Material')
+      ? 'none'
+      : '';
 }
 
 function recalcBomCost(){
   const preview = document.getElementById('bomCostPreview');
+
   if(!preview) return;
+
   let total = 0;
+
   document.querySelectorAll('.materialCheckbox:checked').forEach(cb=>{
     const idx = cb.dataset.idx;
-    const qtyInput = document.querySelector(`.materialQty[data-idx="${idx}"]`);
-    const qty = qtyInput ? (parseFloat(qtyInput.value) || 0) : 0;
+
+    const qtyInput =
+      document.querySelector(`.materialQty[data-idx="${idx}"]`);
+
+    const qty = qtyInput
+      ? (parseFloat(qtyInput.value) || 0)
+      : 0;
+
     const price = MATERIAL_UNIT_PRICE[cb.value] || 0;
+
     total += qty * price;
   });
-  preview.textContent = `Estimated Cost (auto): ${total.toLocaleString('en-US',{maximumFractionDigits:2})} SAR`;
+
+  preview.textContent =
+    `Estimated Cost (auto): ${total.toLocaleString('en-US',{maximumFractionDigits:2})} SAR`;
+
   preview.dataset.total = total;
 }
 
 function renderMaterialsField(type, product){
   const wrapper = document.getElementById('materialsFieldWrapper');
+
   toggleQtyCostPanel(type);
+
   if(type !== 'Raw Material' && type !== 'Packaging Material'){
     wrapper.style.display = 'none';
     wrapper.innerHTML = '';
     return;
   }
+
   const bom = PRODUCT_BOM[product];
+
   if(!bom){
     wrapper.style.display = '';
-    wrapper.innerHTML = `<label>Select Material(s)</label><div class="empty" style="padding:14px; font-size:11.5px;">No BOM data available yet for "${escapeHtml(product||'this product')}".</div>`;
+
+    wrapper.innerHTML =
+      `<label>Select Material(s)</label>
+       <div class="empty" style="padding:14px; font-size:11.5px;">
+       No BOM data available yet for "${escapeHtml(product||'this product')}".
+       </div>`;
+
     return;
   }
-  const items = (type === 'Raw Material') ? bom.raw : bom.packaging;
+
+  const items =
+    type === 'Raw Material'
+      ? bom.raw
+      : bom.packaging;
+
   wrapper.style.display = '';
+
   wrapper.innerHTML = `
     <label>Select Material(s)</label>
     <div class="bom-scroll">
       <table class="bom-table">
-        <tr>${items.map((m,i)=>`<td class="bom-cell"><div class="bom-name">${escapeHtml(m)}</div><input type="checkbox" class="materialCheckbox" data-idx="${i}" value="${escapeHtml(m)}"></td>`).join('')}</tr>
-        <tr>${items.map((m,i)=>`<td class="bom-cell"><input type="number" step="any" class="materialQty" data-idx="${i}" placeholder="Qty" disabled></td>`).join('')}</tr>
+        <tr>
+          ${items.map((m,i)=>`
+            <td class="bom-cell">
+              <div class="bom-name">${escapeHtml(m)}</div>
+              <input type="checkbox"
+                     class="materialCheckbox"
+                     data-idx="${i}"
+                     value="${escapeHtml(m)}">
+            </td>
+          `).join('')}
+        </tr>
+
+        <tr>
+          ${items.map((m,i)=>`
+            <td class="bom-cell">
+              <input type="number"
+                     step="any"
+                     class="materialQty"
+                     data-idx="${i}"
+                     placeholder="Qty"
+                     disabled>
+            </td>
+          `).join('')}
+        </tr>
       </table>
     </div>
-    <div id="bomCostPreview" data-total="0">Estimated Cost (auto): 0 SAR</div>
+
+    <div id="bomCostPreview" data-total="0">
+      Estimated Cost (auto): 0 SAR
+    </div>
   `;
+
   wrapper.querySelectorAll('.materialCheckbox').forEach(cb=>{
     cb.addEventListener('change', (e)=>{
       const idx = e.target.dataset.idx;
-      const qtyInput = wrapper.querySelector(`.materialQty[data-idx="${idx}"]`);
+
+      const qtyInput =
+        wrapper.querySelector(`.materialQty[data-idx="${idx}"]`);
+
       qtyInput.disabled = !e.target.checked;
-      if(!e.target.checked) qtyInput.value = '';
+
+      if(!e.target.checked)
+        qtyInput.value = '';
+
       recalcBomCost();
     });
   });
-  wrapper.querySelectorAll('.materialQty').forEach(inp=>{ inp.addEventListener('input', recalcBomCost); });
+
+  wrapper.querySelectorAll('.materialQty').forEach(inp=>{
+    inp.addEventListener('input', recalcBomCost);
+  });
+
   recalcBomCost();
 }
 
-document.getElementById('f_type').addEventListener('change', (e)=> renderMaterialsField(e.target.value, getCurrentProduct()));
+document.getElementById('f_type').addEventListener('change', (e)=>
+  renderMaterialsField(
+    e.target.value,
+    getCurrentProduct()
+  )
+);
 
 let photoBase64 = '';
 
 function compressImage(file, maxWidth){
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
+
     reader.onload = (e)=>{
       const img = new Image();
+
       img.onload = ()=>{
-        const scale = Math.min(1, maxWidth / img.width);
-        const canvas = document.createElement('canvas');
+        const scale =
+          Math.min(1, maxWidth / img.width);
+
+        const canvas =
+          document.createElement('canvas');
+
         canvas.width = img.width * scale;
         canvas.height = img.height * scale;
+
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.65));
+
+        ctx.drawImage(
+          img,
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
+
+        resolve(
+          canvas.toDataURL('image/jpeg', 0.65)
+        );
       };
+
       img.onerror = reject;
       img.src = e.target.result;
     };
+
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
 }
 
-document.getElementById('f_photo').addEventListener('change', async (e)=>{
+document.getElementById('f_photo')
+.addEventListener('change', async (e)=>{
   const file = e.target.files[0];
+
   if(!file) return;
-  photoBase64 = await compressImage(file, 1024);
-  document.getElementById('photoPreview').src = photoBase64;
-  document.getElementById('photoPreviewWrap').style.display = '';
+
+  photoBase64 =
+    await compressImage(file, 1024);
+
+  document.getElementById('photoPreview').src =
+    photoBase64;
+
+  document.getElementById('photoPreviewWrap')
+    .style.display = '';
 });
 
-document.getElementById('removePhotoBtn').addEventListener('click', ()=>{
+document.getElementById('removePhotoBtn')
+.addEventListener('click', ()=>{
   photoBase64 = '';
+
   document.getElementById('f_photo').value = '';
-  document.getElementById('photoPreviewWrap').style.display = 'none';
+
+  document.getElementById('photoPreviewWrap')
+    .style.display = 'none';
 });
 
 function renderReporterFields(type){
-  const container = document.getElementById('reporterFieldsContainer');
-  if(!type){ container.innerHTML=''; return; }
-  const idLabel = (type === 'Aljadi') ? 'Iqama ID' : 'Contractor Number';
+  const container =
+    document.getElementById('reporterFieldsContainer');
+
+  if(!type){
+    container.innerHTML='';
+    return;
+  }
+
+  const idLabel =
+    (type === 'Aljadi')
+      ? 'Iqama ID'
+      : 'Contractor Number';
+
   container.innerHTML = `
-    <div class="field"><label>Name</label><input type="text" id="f_reporter_name" placeholder="Full name"></div>
-    <div class="field"><label>${idLabel}</label><input type="text" id="f_reporter_id" placeholder="${idLabel}"></div>
+    <div class="field">
+      <label>Name</label>
+      <input type="text"
+             id="f_reporter_name"
+             placeholder="Full name">
+    </div>
+
+    <div class="field">
+      <label>${idLabel}</label>
+      <input type="text"
+             id="f_reporter_id"
+             placeholder="${idLabel}">
+    </div>
   `;
 }
 
-document.getElementById('f_reporter_type').addEventListener('change', (e)=> renderReporterFields(e.target.value));
+document.getElementById('f_reporter_type')
+.addEventListener('change', (e)=>
+  renderReporterFields(e.target.value)
+);
 
 async function loadRecords(){
   try {
-    const response = await fetch(WEB_APP_URL, { redirect: 'follow' });
-    const data = await response.json();
+
+    const response =
+      await fetch(WEB_APP_URL, {
+        redirect: 'follow'
+      });
+
+    const data =
+      await response.json();
+
     if(Array.isArray(data) && data.length > 0){
-      let rawRecords = data.map(item => ({
-        id: item.id || '',
-        date: cleanDate(item.date),
-        time: cleanTime(item.time),
-        shift: item.shift || '',
-        reporter: item.reporter || '',
-        area: item.area || '',
-        line: item.line || '',
-        batch: item.batch || '',
-        product: item.product || '',
-        itemNumber: item.itemNumber || '',
-        stage: item.stage || '',
-        type: item.type || '',
-        materials: item.materials || '',
-        qty: parseFloat(item.qty) || 0,
-        unit: item.unit || 'kg',
-        cost: parseFloat(item.cost) || 0,
-        cause: item.cause || '',
-        mrNumber: item.mrNumber || '',
-        photo: item.photo || '',
-        details: item.details || '',
-        action: item.action || '',
-        status: item.status || 'Resolved'
-      }));
-      records = rawRecords.reverse();
+
+      let rawRecords =
+        data.map(item => ({
+          id: item.id || '',
+          date: cleanDate(item.date),
+          time: cleanTime(item.time),
+          shift: item.shift || '',
+          reporter: item.reporter || '',
+          area: item.area || '',
+          line: item.line || '',
+          batch: item.batch || '',
+          product: item.product || '',
+          itemNumber: item.itemNumber || '',
+          stage: item.stage || '',
+          type: item.type || '',
+          materials: item.materials || '',
+          qty: parseFloat(item.qty) || 0,
+          unit: item.unit || 'kg',
+          cost: parseFloat(item.cost) || 0,
+          cause: item.cause || '',
+          mrNumber: item.mrNumber || '',
+          photo: item.photo || '',
+          details: item.details || '',
+          action: item.action || '',
+          status: item.status || 'Resolved'
+        }));
+
+      records =
+        rawRecords.reverse();
     }
-  } catch(e){ console.error("Error reading Google Sheets", e); }
+
+  } catch(e){
+
+    console.error(
+      "Error reading Google Sheets",
+      e
+    );
+  }
+
   renderAll();
 }
 
 function toggleMRField(cause){
-  const wrapper = document.getElementById('mrFieldWrapper');
-  wrapper.style.display = (cause === 'MR') ? '' : 'none';
-  if(cause !== 'MR'){ const inp = document.getElementById('f_mr_number'); if(inp) inp.value=''; }
+  const wrapper =
+    document.getElementById('mrFieldWrapper');
+
+  wrapper.style.display =
+    (cause === 'MR') ? '' : 'none';
+
+  if(cause !== 'MR'){
+    const inp =
+      document.getElementById('f_mr_number');
+
+    if(inp)
+      inp.value='';
+  }
 }
 
-document.getElementById('f_cause').addEventListener('change', (e)=> toggleMRField(e.target.value));
+document.getElementById('f_cause')
+.addEventListener('change', (e)=>
+  toggleMRField(e.target.value)
+);
 
 function initForm(){
-  document.getElementById('f_date').value = todayStr();
-  document.getElementById('f_time').value = nowTime();
-  renderLineField(document.getElementById('f_area').value);
-  renderProductField(document.getElementById('f_area').value);
-  renderMaterialsField(document.getElementById('f_type').value, getCurrentProduct());
-  toggleMRField(document.getElementById('f_cause').value);
+
+  document.getElementById('f_date').value =
+    todayStr();
+
+  document.getElementById('f_time').value =
+    nowTime();
+
+  renderLineField(
+    document.getElementById('f_area').value
+  );
+
+  renderProductField(
+    document.getElementById('f_area').value
+  );
+
+  renderMaterialsField(
+    document.getElementById('f_type').value,
+    getCurrentProduct()
+  );
+
+  toggleMRField(
+    document.getElementById('f_cause').value
+  );
 }
 
-document.getElementById('saveBtn').addEventListener('click', async ()=>{
-  const productEl = document.getElementById('f_product');
-  const reporterType = document.getElementById('f_reporter_type').value;
-  const reporterNameEl = document.getElementById('f_reporter_name');
-  const reporterIdEl = document.getElementById('f_reporter_id');
-  const reporterName = reporterNameEl ? reporterNameEl.value.trim() : '';
-  const reporterId = reporterIdEl ? reporterIdEl.value.trim() : '';
-  const idLabel = (reporterType === 'Aljadi') ? 'Iqama ID' : 'Contractor Number';
-  const msg = document.getElementById('saveMsg');
+document.getElementById('saveBtn')
+.addEventListener('click', async ()=>{
+
+  const productEl =
+    document.getElementById('f_product');
+
+  const reporterType =
+    document.getElementById('f_reporter_type').value;
+
+  const reporterNameEl =
+    document.getElementById('f_reporter_name');
+
+  const reporterIdEl =
+    document.getElementById('f_reporter_id');
+
+  const reporterName =
+    reporterNameEl
+      ? reporterNameEl.value.trim()
+      : '';
+
+  const reporterId =
+    reporterIdEl
+      ? reporterIdEl.value.trim()
+      : '';
+
+  const idLabel =
+    (reporterType === 'Aljadi')
+      ? 'Iqama ID'
+      : 'Contractor Number';
+
+  const msg =
+    document.getElementById('saveMsg');
 
   if(!reporterType || !reporterName || !reporterId){
+
     msg.className = 'save-msg err';
-    msg.textContent = 'Please complete the Reported By fields (type, name, and ID).';
+
+    msg.textContent =
+      'Please complete the Reported By fields (type, name, and ID).';
+
     return;
   }
 
-  const lineEl = document.getElementById('f_line');
-  const wasteType = document.getElementById('f_type').value;
-  const materialCheckboxes = document.querySelectorAll('.materialCheckbox:checked');
-  const materials = Array.from(materialCheckboxes).map(cb=>{
-    const idx = cb.dataset.idx;
-    const qtyInput = document.querySelector(`.materialQty[data-idx="${idx}"]`);
-    const qty = qtyInput ? qtyInput.value : '';
-    return qty ? `${cb.value}: ${qty}` : cb.value;
-  }).join('; ');
+  const lineEl =
+    document.getElementById('f_line');
 
-  const bomCostPreview = document.getElementById('bomCostPreview');
-  const autoBomCost = bomCostPreview ? parseFloat(bomCostPreview.dataset.total || '0') : 0;
-  const usesBom = (wasteType === 'Packaging Material' || wasteType === 'Raw Material');
-  const productName = productEl ? productEl.value.trim() : '';
+  const wasteType =
+    document.getElementById('f_type').value;
+
+  const materialCheckboxes =
+    document.querySelectorAll(
+      '.materialCheckbox:checked'
+    );
+
+  const materials =
+    Array.from(materialCheckboxes)
+      .map(cb=>{
+
+        const idx =
+          cb.dataset.idx;
+
+        const qtyInput =
+          document.querySelector(
+            `.materialQty[data-idx="${idx}"]`
+          );
+
+        const qty =
+          qtyInput
+            ? qtyInput.value
+            : '';
+
+        return qty
+          ? `${cb.value}: ${qty}`
+          : cb.value;
+
+      })
+      .join('; ');
+
+  const bomCostPreview =
+    document.getElementById(
+      'bomCostPreview'
+    );
+
+  const autoBomCost =
+    bomCostPreview
+      ? parseFloat(
+          bomCostPreview.dataset.total || '0'
+        )
+      : 0;
+
+  const usesBom =
+    (
+      wasteType === 'Packaging Material' ||
+      wasteType === 'Raw Material'
+    );
+
+  const productName =
+    productEl
+      ? productEl.value.trim()
+      : '';
 
   const rec = {
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-    date: document.getElementById('f_date').value || todayStr(),
-    time: document.getElementById('f_time').value || nowTime(),
-    shift: document.getElementById('f_shift').value,
-    reporter: `${reporterType} - ${reporterName} - ${idLabel}: ${reporterId}`,
-    area: document.getElementById('f_area').value,
-    line: lineEl ? lineEl.value : '',
-    batch: document.getElementById('f_batch').value.trim(),
-    product: productName,
-    itemNumber: PRODUCT_ITEM_NUMBER[productName] || '',
-    stage: document.getElementById('f_stage').value,
-    type: wasteType,
-    materials: materials,
-    qty: usesBom ? 0 : (parseFloat(document.getElementById('f_qty').value) || 0),
-    unit: document.getElementById('f_unit').value,
-    cost: usesBom ? autoBomCost : (parseFloat(document.getElementById('f_cost').value) || 0),
-    cause: document.getElementById('f_cause').value,
-    mrNumber: document.getElementById('f_cause').value === 'MR' ? document.getElementById('f_mr_number').value.trim() : '',
-    details: document.getElementById('f_details').value.trim(),
-    action: document.getElementById('f_action').value,
-    status: document.getElementById('f_status').value,
-    photo: photoBase64 || ''
+
+    id:
+      Date.now().toString(36) +
+      Math.random().toString(36).slice(2,6),
+
+    date:
+      document.getElementById('f_date').value ||
+      todayStr(),
+
+    time:
+      document.getElementById('f_time').value ||
+      nowTime(),
+
+    shift:
+      document.getElementById('f_shift').value,
+
+    reporter:
+      `${reporterType} - ${reporterName} - ${idLabel}: ${reporterId}`,
+
+    area:
+      document.getElementById('f_area').value,
+
+    line:
+      lineEl
+        ? lineEl.value
+        : '',
+
+    batch:
+      document.getElementById('f_batch')
+        .value.trim(),
+
+    product:
+      productName,
+
+    itemNumber:
+      PRODUCT_ITEM_NUMBER[productName] || '',
+
+    stage:
+      document.getElementById('f_stage').value,
+
+    type:
+      wasteType,
+
+    materials:
+      materials,
+
+    qty:
+      usesBom
+        ? 0
+        : (
+          parseFloat(
+            document.getElementById('f_qty').value
+          ) || 0
+        ),
+
+    unit:
+      document.getElementById('f_unit').value,
+
+    cost:
+      usesBom
+        ? autoBomCost
+        : (
+          parseFloat(
+            document.getElementById('f_cost').value
+          ) || 0
+        ),
+
+    cause:
+      document.getElementById('f_cause').value,
+
+    mrNumber:
+      document.getElementById('f_cause').value === 'MR'
+        ? document.getElementById('f_mr_number').value.trim()
+        : '',
+
+    details:
+      document.getElementById('f_details')
+        .value.trim(),
+
+    action:
+      document.getElementById('f_action').value,
+
+    status:
+      document.getElementById('f_status').value,
+
+    photo:
+      photoBase64 || ''
   };
 
+  const msg2 =
+    document.getElementById('saveMsg');
+
   if(!rec.product){
-    msg.className = 'save-msg err';
-    msg.textContent = 'Please enter a product name.';
+
+    msg2.className =
+      'save-msg err';
+
+    msg2.textContent =
+      'Please enter a product name.';
+
     return;
   }
 
-  const btn = document.getElementById('saveBtn');
+  const btn =
+    document.getElementById('saveBtn');
+
   btn.disabled = true;
-  btn.textContent = 'Saving to Google Sheets...';
+
+  btn.textContent =
+    'Saving to Google Sheets...';
 
   try {
-    await fetch(WEB_APP_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(rec),
-      redirect: 'follow'
-    });
+
+    await fetch(
+      WEB_APP_URL,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type':
+            'text/plain;charset=utf-8'
+        },
+        body:
+          JSON.stringify(rec),
+        redirect:
+          'follow'
+      }
+    );
+
     records.unshift(rec);
-    msg.className = 'save-msg ok';
-    msg.textContent = 'Saved to Google Sheets successfully!';
+
+    msg.className =
+      'save-msg ok';
+
+    msg.textContent =
+      'Saved to Google Sheets successfully!';
+
   } catch(err){
-    console.error('Save error:', err);
+
+    console.error(
+      'Save error:',
+      err
+    );
+
     records.unshift(rec);
-    msg.className = 'save-msg ok';
-    msg.textContent = 'Saved locally.';
+
+    msg.className =
+      'save-msg ok';
+
+    msg.textContent =
+      'Saved locally.';
   }
 
   btn.disabled = false;
+
   btn.textContent = '+ Add';
 
   document.getElementById('f_batch').value='';
@@ -775,383 +1223,1238 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   document.getElementById('f_cost').value='';
   document.getElementById('f_details').value='';
   document.getElementById('f_reporter_type').value='';
+
   photoBase64 = '';
+
   document.getElementById('f_photo').value = '';
-  document.getElementById('photoPreviewWrap').style.display = 'none';
+
+  document.getElementById('photoPreviewWrap')
+    .style.display = 'none';
+
   renderReporterFields('');
+
   initForm();
+
   renderAll();
-  setTimeout(()=>{ msg.textContent=''; },4000);
+
+  setTimeout(()=>{
+    msg.textContent='';
+  },4000);
+
 });
 
 function isThisMonth(dateStr){
-  const d = new Date(dateStr);
-  const now = new Date();
-  return (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth());
+
+  const d =
+    new Date(dateStr);
+
+  const now =
+    new Date();
+
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth()
+  );
 }
 
 function renderStats(){
-  const monthRecs = records.filter(r => isThisMonth(r.date));
+
+  const monthRecs =
+    records.filter(r =>
+      isThisMonth(r.date)
+    );
+
   const areaCost = {};
+
   monthRecs.forEach(r=>{
-    const a = r.area || 'Unspecified';
-    areaCost[a] = (areaCost[a] || 0) + (r.cost || 0);
+
+    const a =
+      r.area || 'Unspecified';
+
+    areaCost[a] =
+      (areaCost[a] || 0) +
+      (r.cost || 0);
   });
-  const areaEntries = Object.entries(areaCost).sort((a,b)=>b[1]-a[1]);
+
+  const areaEntries =
+    Object.entries(areaCost)
+      .sort((a,b)=>b[1]-a[1]);
+
   const productCost = {};
+
   monthRecs.forEach(r=>{
+
     if(r.product){
-      productCost[r.product] = (productCost[r.product] || 0) + (r.cost || 0);
+
+      productCost[r.product] =
+        (productCost[r.product] || 0) +
+        (r.cost || 0);
     }
   });
-  const productEntries = Object.entries(productCost).sort((a,b)=>b[1]-a[1]);
 
-  document.getElementById('statTopArea').textContent = areaEntries.length ? areaEntries[0][0] : '—';
-  document.getElementById('statTopAreaCost').textContent = areaEntries.length ? areaEntries[0][1].toLocaleString('en-US',{maximumFractionDigits:0}) : '—';
-  document.getElementById('statTopProduct').textContent = productEntries.length ? productEntries[0][0] : '—';
+  const productEntries =
+    Object.entries(productCost)
+      .sort((a,b)=>b[1]-a[1]);
+
+  document.getElementById('statTopArea')
+    .textContent =
+      areaEntries.length
+        ? areaEntries[0][0]
+        : '—';
+
+  document.getElementById('statTopAreaCost')
+    .textContent =
+      areaEntries.length
+        ? areaEntries[0][1]
+            .toLocaleString(
+              'en-US',
+              {maximumFractionDigits:0}
+            )
+        : '—';
+
+  document.getElementById('statTopProduct')
+    .textContent =
+      productEntries.length
+        ? productEntries[0][0]
+        : '—';
 }
 
 function getArea1AllProducts(){
-  const byLine = AREA_LINE_PRODUCTS['Area 1'] || {};
-  return [...new Set(Object.values(byLine).flat())];
+
+  const byLine =
+    AREA_LINE_PRODUCTS['Area 1'] || {};
+
+  return [
+    ...new Set(
+      Object.values(byLine).flat()
+    )
+  ];
 }
 
 function getProductOptionsForArea(area){
-  if(area === 'Area 1') return getArea1AllProducts();
-  if(area && AREA_PRODUCTS[area]) return AREA_PRODUCTS[area];
+
+  if(area === 'Area 1')
+    return getArea1AllProducts();
+
+  if(area && AREA_PRODUCTS[area])
+    return AREA_PRODUCTS[area];
+
   if(area === 'Area 3'){
-    return [...new Set(records.filter(r=>r.area==='Area 3').map(r=>r.product).filter(Boolean))];
+
+    return [
+      ...new Set(
+        records
+          .filter(r=>r.area==='Area 3')
+          .map(r=>r.product)
+          .filter(Boolean)
+      )
+    ];
   }
-  return [...getArea1AllProducts(), ...AREA_PRODUCTS['Area 2'], ...AREA_PRODUCTS['Area 4']];
+
+  return [
+    ...getArea1AllProducts(),
+    ...AREA_PRODUCTS['Area 2'],
+    ...AREA_PRODUCTS['Area 4']
+  ];
 }
 
 function populateProductFilter(selectEl, area){
-  const products = getProductOptionsForArea(area);
-  const cur = selectEl.value;
-  selectEl.innerHTML = '<option value="">All Products</option>' + products.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
-  selectEl.value = products.includes(cur) ? cur : '';
+
+  const products =
+    getProductOptionsForArea(area);
+
+  const cur =
+    selectEl.value;
+
+  selectEl.innerHTML =
+    '<option value="">All Products</option>' +
+    products
+      .map(p=>
+        `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`
+      )
+      .join('');
+
+  selectEl.value =
+    products.includes(cur)
+      ? cur
+      : '';
 }
 
-function applyFilters(list, area, product, dateFrom, dateTo){
+function applyFilters(
+  list,
+  area,
+  product,
+  dateFrom,
+  dateTo
+){
+
   return list.filter(r=>{
-    if(area && r.area!==area) return false;
-    if(product && r.product!==product) return false;
-    if(dateFrom && r.date < dateFrom) return false;
-    if(dateTo && r.date > dateTo) return false;
+
+    if(area && r.area!==area)
+      return false;
+
+    if(product && r.product!==product)
+      return false;
+
+    if(dateFrom && r.date < dateFrom)
+      return false;
+
+    if(dateTo && r.date > dateTo)
+      return false;
+
     return true;
   });
 }
 
 function renderHistory(){
-  const area = document.getElementById('filterArea').value;
-  populateProductFilter(document.getElementById('filterProduct'), area);
-  const product = document.getElementById('filterProduct').value;
-  const dateFrom = document.getElementById('filterDateFrom').value;
-  const dateTo = document.getElementById('filterDateTo').value;
-  const list = applyFilters(records, area, product, dateFrom, dateTo);
-  const container = document.getElementById('historyList');
+
+  const area =
+    document.getElementById(
+      'filterArea'
+    ).value;
+
+  populateProductFilter(
+    document.getElementById(
+      'filterProduct'
+    ),
+    area
+  );
+
+  const product =
+    document.getElementById(
+      'filterProduct'
+    ).value;
+
+  const dateFrom =
+    document.getElementById(
+      'filterDateFrom'
+    ).value;
+
+  const dateTo =
+    document.getElementById(
+      'filterDateTo'
+    ).value;
+
+  const list =
+    applyFilters(
+      records,
+      area,
+      product,
+      dateFrom,
+      dateTo
+    );
+
+  const container =
+    document.getElementById(
+      'historyList'
+    );
 
   if(list.length === 0){
-    container.innerHTML = '<div class="empty">No records found.</div>';
+
+    container.innerHTML =
+      '<div class="empty">No records found.</div>';
+
     return;
   }
 
-  container.innerHTML = list.map(r => `
-    <div class="ticket">
-      <div class="t-head">
-        <div>
-          <div class="t-title">${escapeHtml(r.product)} ${r.itemNumber ? `<span style="font-weight:400; color:var(--muted); font-size:11px;">#${escapeHtml(r.itemNumber)}</span>` : ''}</div>
-          <div class="t-date">${r.date} · ${r.time} · ${escapeHtml(r.shift||'')}</div>
+  container.innerHTML =
+    list.map(r => `
+      <div class="ticket">
+
+        <div class="t-head">
+
+          <div>
+
+            <div class="t-title">
+              ${escapeHtml(r.product)}
+
+              ${
+                r.itemNumber
+                  ? ` <span style="font-weight:400; color:var(--muted); font-size:11px;">
+                      #${escapeHtml(r.itemNumber)}
+                    </span>`
+                  : ''
+              }
+
+            </div>
+
+            <div class="t-date">
+              ${r.date} · ${r.time} · ${escapeHtml(r.shift||'')}
+            </div>
+
+          </div>
+
+          <div class="t-cost">
+            ${
+              r.cost
+                ? r.cost.toLocaleString('en-US') + ' SAR'
+                : ''
+            }
+          </div>
+
         </div>
-        <div class="t-cost">${r.cost ? r.cost.toLocaleString('en-US') + ' SAR' : ''}</div>
+
+        <div class="t-tags">
+
+          <span class="tag">
+            ${escapeHtml(r.area||'—')}
+          </span>
+
+          ${
+            r.line
+              ? `<span class="tag">${escapeHtml(r.line)}</span>`
+              : ''
+          }
+
+          <span class="tag">
+            ${escapeHtml(r.stage)}
+          </span>
+
+          <span class="tag">
+            ${escapeHtml(r.type)}
+          </span>
+
+          ${
+            r.qty
+              ? `<span class="tag">
+                  ${escapeHtml(r.qty)}
+                  ${escapeHtml(r.unit)}
+                </span>`
+              : ''
+          }
+
+          <span class="tag ${
+            r.status === 'Resolved'
+              ? 'status-done'
+              : 'status-open'
+          }">
+            ${escapeHtml(r.status)}
+          </span>
+
+        </div>
+
+        ${
+          r.materials
+            ? `<div class="t-cause">
+                <strong>Material(s):</strong>
+                ${escapeHtml(r.materials)}
+              </div>`
+            : ''
+        }
+
+        <div class="t-cause">
+
+          <strong>Cause:</strong>
+
+          ${escapeHtml(r.cause)}
+
+          ${
+            r.mrNumber
+              ? ' (MR #' +
+                escapeHtml(r.mrNumber) +
+                ')'
+              : ''
+          }
+
+          ${
+            r.details
+              ? ' — ' +
+                escapeHtml(r.details)
+              : ''
+          }
+
+        </div>
+
+        <div class="t-meta">
+
+          ${
+            r.batch
+              ? 'Batch: ' +
+                escapeHtml(r.batch)
+              : ''
+          }
+
+          ${
+            r.batch && r.reporter
+              ? ' · '
+              : ''
+          }
+
+          ${
+            r.reporter
+              ? 'Reported by: ' +
+                escapeHtml(r.reporter)
+              : ''
+          }
+
+        </div>
+
+        ${
+          r.photo
+            ? `<a href="${escapeHtml(r.photo)}"
+                 target="_blank"
+                 style="display:inline-block; margin-top:8px; font-size:11px; font-weight:700; color:var(--green-700);">
+                 📷 View Photo
+               </a>`
+            : ''
+        }
+
       </div>
-      <div class="t-tags">
-        <span class="tag">${escapeHtml(r.area||'—')}</span>
-        ${r.line ? `<span class="tag">${escapeHtml(r.line)}</span>` : ''}
-        <span class="tag">${escapeHtml(r.stage)}</span>
-        <span class="tag">${escapeHtml(r.type)}</span>
-        ${r.qty ? `<span class="tag">${escapeHtml(r.qty)} ${escapeHtml(r.unit)}</span>` : ''}
-        <span class="tag ${r.status === 'Resolved' ? 'status-done' : 'status-open'}">${escapeHtml(r.status)}</span>
-      </div>
-      ${r.materials ? `<div class="t-cause"><strong>Material(s):</strong> ${escapeHtml(r.materials)}</div>` : ''}
-      <div class="t-cause"><strong>Cause:</strong> ${escapeHtml(r.cause)} ${r.mrNumber ? ' (MR #' + escapeHtml(r.mrNumber) + ')' : ''} ${r.details ? ' — ' + escapeHtml(r.details) : ''}</div>
-      <div class="t-meta">${r.batch ? 'Batch: ' + escapeHtml(r.batch) : ''} ${r.batch && r.reporter ? ' · ' : ''} ${r.reporter ? 'Reported by: ' + escapeHtml(r.reporter) : ''}</div>
-      ${r.photo ? `<a href="${escapeHtml(r.photo)}" target="_blank" style="display:inline-block; margin-top:8px; font-size:11px; font-weight:700; color:var(--green-700);">📷 View Photo</a>` : ''}
-    </div>
-  `).join('');
+    `)
+    .join('');
 }
 
 function initCharts(){
-  if(typeof Chart === 'undefined') return;
-  const pieCtx = document.getElementById('pieCanvas').getContext('2d');
-  pieChart = new Chart(pieCtx, {
-    type:'pie',
-    data:{
-      labels:AREA_ORDER,
-      datasets:[{
-        data:[0,0,0,0],
-        backgroundColor:AREA_ORDER.map(a=>AREA_COLORS[a]),
-        borderColor:'#163C1B',
-        borderWidth:1.5
-      }]
-    },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ position:'bottom', labels:{ boxWidth:12, font:{size:11} } } }
-    }
-  });
 
-  const lineCtx = document.getElementById('lineCanvas').getContext('2d');
-  lineChart = new Chart(lineCtx, {
-    type:'line',
-    data:{
-      labels:[],
-      datasets:[{
-        label:'Waste Quantity',
-        data:[],
-        borderColor:'#2C6E2E',
-        backgroundColor:'rgba(44,110,46,0.12)',
-        fill:true, tension:.3, pointRadius:3, pointBackgroundColor:'#2C6E2E'
-      }]
-    },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ display:false } },
-      scales:{ y:{ beginAtZero:true } }
-    }
-  });
+  if(typeof Chart === 'undefined')
+    return;
+
+  const pieCtx =
+    document.getElementById(
+      'pieCanvas'
+    ).getContext('2d');
+
+  pieChart =
+    new Chart(
+      pieCtx,
+      {
+        type:'pie',
+
+        data:{
+          labels:AREA_ORDER,
+
+          datasets:[{
+            data:[0,0,0,0],
+
+            backgroundColor:
+              AREA_ORDER.map(
+                a=>AREA_COLORS[a]
+              ),
+
+            borderColor:'#163C1B',
+
+            borderWidth:1.5
+          }]
+        },
+
+        options:{
+          responsive:true,
+          maintainAspectRatio:false,
+
+          plugins:{
+            legend:{
+              position:'bottom',
+
+              labels:{
+                boxWidth:12,
+                font:{size:11}
+              }
+            }
+          }
+        }
+      }
+    );
+
+  const lineCtx =
+    document.getElementById(
+      'lineCanvas'
+    ).getContext('2d');
+
+  lineChart =
+    new Chart(
+      lineCtx,
+      {
+        type:'line',
+
+        data:{
+          labels:[],
+
+          datasets:[{
+            label:'Waste Quantity',
+            data:[],
+
+            borderColor:'#2C6E2E',
+
+            backgroundColor:
+              'rgba(44,110,46,0.12)',
+
+            fill:true,
+
+            tension:.3,
+
+            pointRadius:3,
+
+            pointBackgroundColor:
+              '#2C6E2E'
+          }]
+        },
+
+        options:{
+          responsive:true,
+          maintainAspectRatio:false,
+
+          plugins:{
+            legend:{
+              display:false
+            }
+          },
+
+          scales:{
+            y:{
+              beginAtZero:true
+            }
+          }
+        }
+      }
+    );
 }
 
 function hexToRgb(hex){
-  const h = hex.replace('#','');
-  return { r:parseInt(h.substring(0,2),16), g:parseInt(h.substring(2,4),16), b:parseInt(h.substring(4,6),16) };
-}
-function rgbToHex(r,g,b){
-  return '#' + [r,g,b].map(v=>Math.max(0,Math.min(255,v)).toString(16).padStart(2,'0')).join('');
-}
-function mixWithWhite(hex, ratio){
-  const {r,g,b} = hexToRgb(hex);
-  return rgbToHex(Math.round(r + (255-r)*ratio), Math.round(g + (255-g)*ratio), Math.round(b + (255-b)*ratio));
-}
-function shadesForArea(area,n){
-  if(area === 'Area 3'){
-    const palette = ['#2C6E2E','#3E8B3B','#6FA83A','#8FBF6B','#A9D492','#C7E3B9','#1F5423','#163C1B','#4A7A46'];
-    return Array.from({length:n}, (_,i)=>palette[i % palette.length]);
-  }
-  const base = AREA_COLORS[area] || '#3E8B3B';
-  return Array.from({length:n}, (_,i)=>mixWithWhite(base, n<=1 ? 0 : (i/(n-1))*0.55));
+
+  const h =
+    hex.replace('#','');
+
+  return {
+    r:parseInt(
+      h.substring(0,2),
+      16
+    ),
+
+    g:parseInt(
+      h.substring(2,4),
+      16
+    ),
+
+    b:parseInt(
+      h.substring(4,6),
+      16
+    )
+  };
 }
 
-function computePieData(area, product, dateFrom, dateTo){
+function rgbToHex(r,g,b){
+
+  return '#' +
+    [r,g,b]
+      .map(v=>
+        Math.max(
+          0,
+          Math.min(255,v)
+        )
+        .toString(16)
+        .padStart(2,'0')
+      )
+      .join('');
+}
+
+function mixWithWhite(hex, ratio){
+
+  const {r,g,b} =
+    hexToRgb(hex);
+
+  return rgbToHex(
+    Math.round(
+      r + (255-r)*ratio
+    ),
+
+    Math.round(
+      g + (255-g)*ratio
+    ),
+
+    Math.round(
+      b + (255-b)*ratio
+    )
+  );
+}
+
+function shadesForArea(area,n){
+
+  if(area === 'Area 3'){
+
+    const palette = [
+      '#2C6E2E',
+      '#3E8B3B',
+      '#6FA83A',
+      '#8FBF6B',
+      '#A9D492',
+      '#C7E3B9',
+      '#1F5423',
+      '#163C1B',
+      '#4A7A46'
+    ];
+
+    return Array.from(
+      {length:n},
+      (_,i)=>
+        palette[i % palette.length]
+    );
+  }
+
+  const base =
+    AREA_COLORS[area] ||
+    '#3E8B3B';
+
+  return Array.from(
+    {length:n},
+    (_,i)=>
+      mixWithWhite(
+        base,
+        n<=1
+          ? 0
+          : (i/(n-1))*0.55
+      )
+  );
+}
+
+function computePieData(
+  area,
+  product,
+  dateFrom,
+  dateTo
+){
+
   if(!area){
-    const base = applyFilters(records, '', product, dateFrom, dateTo);
-    const data = AREA_ORDER.map(a => base.filter(r=>r.area===a).reduce((s,r)=>s+(r.cost||0),0));
-    return { labels:AREA_ORDER, data, colors:AREA_ORDER.map(a=>AREA_COLORS[a]) };
+
+    const base =
+      applyFilters(
+        records,
+        '',
+        product,
+        dateFrom,
+        dateTo
+      );
+
+    const data =
+      AREA_ORDER.map(a =>
+        base
+          .filter(r=>r.area===a)
+          .reduce(
+            (s,r)=>
+              s+(r.cost||0),
+            0
+          )
+      );
+
+    return {
+      labels:AREA_ORDER,
+      data,
+      colors:
+        AREA_ORDER.map(
+          a=>AREA_COLORS[a]
+        )
+    };
   }
-  const base = applyFilters(records, area, product, dateFrom, dateTo);
+
+  const base =
+    applyFilters(
+      records,
+      area,
+      product,
+      dateFrom,
+      dateTo
+    );
+
   const costByProduct = {};
+
   base.forEach(r=>{
-    const p = r.product || 'Unspecified';
-    costByProduct[p] = (costByProduct[p] || 0) + (r.cost || 0);
+
+    const p =
+      r.product ||
+      'Unspecified';
+
+    costByProduct[p] =
+      (costByProduct[p] || 0) +
+      (r.cost || 0);
   });
-  let entries = Object.entries(costByProduct).sort((a,b)=>b[1]-a[1]);
+
+  let entries =
+    Object.entries(costByProduct)
+      .sort((a,b)=>b[1]-a[1]);
+
   if(entries.length > 8){
-    const top = entries.slice(0,8);
-    const otherSum = entries.slice(8).reduce((s,e)=>s+e[1],0);
-    entries = [...top, ['Other',otherSum]];
+
+    const top =
+      entries.slice(0,8);
+
+    const otherSum =
+      entries
+        .slice(8)
+        .reduce(
+          (s,e)=>s+e[1],
+          0
+        );
+
+    entries =
+      [
+        ...top,
+        ['Other',otherSum]
+      ];
   }
-  if(entries.length === 0) entries = [['No data',0]];
-  return { labels:entries.map(e=>e[0]), data:entries.map(e=>e[1]), colors:shadesForArea(area, entries.length) };
+
+  if(entries.length === 0){
+    entries =
+      [['No data',0]];
+  }
+
+  return {
+    labels:
+      entries.map(e=>e[0]),
+
+    data:
+      entries.map(e=>e[1]),
+
+    colors:
+      shadesForArea(
+        area,
+        entries.length
+      )
+  };
 }
 
 function getBucketUnit(start,end){
-  const days = (end-start)/(1000*60*60*24);
-  if(days<=31) return 'day';
-  if(days<=180) return 'week';
+
+  const days =
+    (end-start) /
+    (1000*60*60*24);
+
+  if(days<=31)
+    return 'day';
+
+  if(days<=180)
+    return 'week';
+
   return 'month';
 }
 
-function buildBuckets(start, end, unit){
+function buildBuckets(
+  start,
+  end,
+  unit
+){
+
   const buckets = [];
-  let cur = new Date(start);
+
+  let cur =
+    new Date(start);
+
   while(cur < end){
-    let next = new Date(cur);
+
+    let next =
+      new Date(cur);
+
     let label = '';
+
     if(unit==='day'){
-      next.setDate(cur.getDate()+1);
-      label = cur.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+
+      next.setDate(
+        cur.getDate()+1
+      );
+
+      label =
+        cur.toLocaleDateString(
+          'en-US',
+          {
+            month:'short',
+            day:'numeric'
+          }
+        );
+
     } else if(unit==='week'){
-      next.setDate(cur.getDate()+7);
-      label = cur.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+
+      next.setDate(
+        cur.getDate()+7
+      );
+
+      label =
+        cur.toLocaleDateString(
+          'en-US',
+          {
+            month:'short',
+            day:'numeric'
+          }
+        );
+
     } else {
-      next = new Date(cur.getFullYear(), cur.getMonth()+1, 1);
-      label = cur.toLocaleDateString('en-US', {month:'short'});
+
+      next =
+        new Date(
+          cur.getFullYear(),
+          cur.getMonth()+1,
+          1
+        );
+
+      label =
+        cur.toLocaleDateString(
+          'en-US',
+          {
+            month:'short'
+          }
+        );
     }
-    buckets.push({ start:new Date(cur), end: next < end ? next : end, label });
+
+    buckets.push({
+      start:new Date(cur),
+      end:
+        next < end
+          ? next
+          : end,
+      label
+    });
+
     cur = next;
   }
+
   return buckets;
 }
 
 function renderDashboard(){
-  const area = document.getElementById('aFilterArea').value;
-  populateProductFilter(document.getElementById('aFilterProduct'), area);
-  const product = document.getElementById('aFilterProduct').value;
-  const dateFrom = document.getElementById('aFilterDateFrom').value;
-  const dateTo = document.getElementById('aFilterDateTo').value;
 
-  const pieData = computePieData(area, product, dateFrom, dateTo);
+  const area =
+    document.getElementById(
+      'aFilterArea'
+    ).value;
+
+  populateProductFilter(
+    document.getElementById(
+      'aFilterProduct'
+    ),
+    area
+  );
+
+  const product =
+    document.getElementById(
+      'aFilterProduct'
+    ).value;
+
+  const dateFrom =
+    document.getElementById(
+      'aFilterDateFrom'
+    ).value;
+
+  const dateTo =
+    document.getElementById(
+      'aFilterDateTo'
+    ).value;
+
+  const pieData =
+    computePieData(
+      area,
+      product,
+      dateFrom,
+      dateTo
+    );
+
   if(pieChart){
-    pieChart.data.labels = pieData.labels;
-    pieChart.data.datasets[0].data = pieData.data;
-    pieChart.data.datasets[0].backgroundColor = pieData.colors;
+
+    pieChart.data.labels =
+      pieData.labels;
+
+    pieChart.data.datasets[0].data =
+      pieData.data;
+
+    pieChart.data.datasets[0].backgroundColor =
+      pieData.colors;
+
     pieChart.update();
   }
 
   let start,end;
+
   if(dateFrom && dateTo){
-    start = new Date(dateFrom); start.setHours(0,0,0,0);
-    end = new Date(dateTo); end.setHours(0,0,0,0); end.setDate(end.getDate()+1);
+
+    start =
+      new Date(dateFrom);
+
+    start.setHours(
+      0,0,0,0
+    );
+
+    end =
+      new Date(dateTo);
+
+    end.setHours(
+      0,0,0,0
+    );
+
+    end.setDate(
+      end.getDate()+1
+    );
+
   } else {
-    end = new Date(); end.setHours(0,0,0,0); end.setDate(end.getDate()+1);
-    start = new Date(end); start.setDate(start.getDate()-30);
+
+    end =
+      new Date();
+
+    end.setHours(
+      0,0,0,0
+    );
+
+    end.setDate(
+      end.getDate()+1
+    );
+
+    start =
+      new Date(end);
+
+    start.setDate(
+      start.getDate()-30
+    );
   }
 
-  const unit = getBucketUnit(start, end);
-  const buckets = buildBuckets(start, end, unit);
-  const lineBase = applyFilters(records, area, product, null, null);
+  const unit =
+    getBucketUnit(
+      start,
+      end
+    );
 
-  const qtyPerBucket = buckets.map(b =>
-    lineBase.filter(r=>{
-      const d = new Date(r.date);
-      return (d >= b.start && d < b.end);
-    }).reduce((s,r)=>s + (parseFloat(r.qty)||0),0)
-  );
+  const buckets =
+    buildBuckets(
+      start,
+      end,
+      unit
+    );
+
+  const lineBase =
+    applyFilters(
+      records,
+      area,
+      product,
+      null,
+      null
+    );
+
+  const qtyPerBucket =
+    buckets.map(b =>
+
+      lineBase
+        .filter(r=>{
+
+          const d =
+            new Date(r.date);
+
+          return (
+            d >= b.start &&
+            d < b.end
+          );
+        })
+        .reduce(
+          (s,r)=>
+            s +
+            (parseFloat(r.qty)||0),
+          0
+        )
+    );
 
   if(lineChart){
-    lineChart.data.labels = buckets.map(b=>b.label);
-    lineChart.data.datasets[0].data = qtyPerBucket;
+
+    lineChart.data.labels =
+      buckets.map(
+        b=>b.label
+      );
+
+    lineChart.data.datasets[0].data =
+      qtyPerBucket;
+
     lineChart.update();
   }
 }
 
 function renderAll(){
+
   renderStats();
   renderHistory();
   renderDashboard();
 }
 
-document.getElementById('filterArea').addEventListener('change', renderHistory);
-document.getElementById('filterProduct').addEventListener('change', renderHistory);
-document.getElementById('filterDateFrom').addEventListener('change', renderHistory);
-document.getElementById('filterDateTo').addEventListener('change', renderHistory);
-document.getElementById('aFilterArea').addEventListener('change', renderDashboard);
-document.getElementById('aFilterProduct').addEventListener('change', renderDashboard);
-document.getElementById('aFilterDateFrom').addEventListener('change', renderDashboard);
-document.getElementById('aFilterDateTo').addEventListener('change', renderDashboard);
+document.getElementById('filterArea')
+.addEventListener(
+  'change',
+  renderHistory
+);
 
-document.querySelectorAll('nav.tabs button').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('main > section').forEach(s=>s.classList.add('hidden'));
-    document.getElementById('tab-'+btn.dataset.tab).classList.remove('hidden');
-    if(btn.dataset.tab === 'history') loadRecords();
-    if(btn.dataset.tab === 'dashboard' && pieChart && lineChart){
-      requestAnimationFrame(()=>{ pieChart.resize(); lineChart.resize(); });
+document.getElementById('filterProduct')
+.addEventListener(
+  'change',
+  renderHistory
+);
+
+document.getElementById('filterDateFrom')
+.addEventListener(
+  'change',
+  renderHistory
+);
+
+document.getElementById('filterDateTo')
+.addEventListener(
+  'change',
+  renderHistory
+);
+
+document.getElementById('aFilterArea')
+.addEventListener(
+  'change',
+  renderDashboard
+);
+
+document.getElementById('aFilterProduct')
+.addEventListener(
+  'change',
+  renderDashboard
+);
+
+document.getElementById('aFilterDateFrom')
+.addEventListener(
+  'change',
+  renderDashboard
+);
+
+document.getElementById('aFilterDateTo')
+.addEventListener(
+  'change',
+  renderDashboard
+);
+
+document.querySelectorAll(
+  'nav.tabs button'
+).forEach(btn=>{
+
+  btn.addEventListener(
+    'click',
+    ()=>{
+
+      document
+        .querySelectorAll(
+          'nav.tabs button'
+        )
+        .forEach(b=>
+          b.classList.remove(
+            'active'
+          )
+        );
+
+      btn.classList.add(
+        'active'
+      );
+
+      document
+        .querySelectorAll(
+          'main > section'
+        )
+        .forEach(s=>
+          s.classList.add(
+            'hidden'
+          )
+        );
+
+      document
+        .getElementById(
+          'tab-'+btn.dataset.tab
+        )
+        .classList.remove(
+          'hidden'
+        );
+
+      if(btn.dataset.tab === 'history'){
+        loadRecords();
+      }
+
+      if(
+        btn.dataset.tab === 'dashboard' &&
+        pieChart &&
+        lineChart
+      ){
+
+        requestAnimationFrame(()=>{
+          pieChart.resize();
+          lineChart.resize();
+        });
+      }
     }
-  });
+  );
 });
 
 let html5QrCode = null;
 
-document.getElementById('scanBtn').addEventListener('click', ()=>{
-  document.getElementById('scanModal').style.display = 'flex';
-  document.getElementById('scanStatus').textContent = 'Point the camera at the sticker...';
+document.getElementById('scanBtn')
+.addEventListener('click', ()=>{
+
+  document.getElementById(
+    'scanModal'
+  ).style.display = 'flex';
+
+  document.getElementById(
+    'scanStatus'
+  ).textContent =
+    'Point the camera at the barcode...';
 
   if(typeof Html5Qrcode === 'undefined'){
-    document.getElementById('scanStatus').textContent = 'Scanner library failed to load.';
+
+    document.getElementById(
+      'scanStatus'
+    ).textContent =
+      'Scanner library failed to load. Check your connection and try again.';
+
     return;
   }
 
-  html5QrCode = new Html5Qrcode("scanner-container");
+  html5QrCode =
+    new Html5Qrcode(
+      "scanner-container",
+      {
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.CODE_93,
+          Html5QrcodeSupportedFormats.CODABAR,
+          Html5QrcodeSupportedFormats.ITF
+        ],
+        verbose: false
+      }
+    );
+
   html5QrCode.start(
+
     { facingMode:"environment" },
+
     {
-      fps: 10,
-      qrbox: { width: 320, height: 180 },
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.QR_CODE,
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.UPC_E
-      ]
+      fps:10,
+      qrbox: { width: 260, height: 140 },
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: true
+      }
     },
-    (decodedText)=>{
-      const code = decodedText.trim();
-      document.getElementById('f_batch').value = code;
-      document.getElementById('scanStatus').textContent = `Scanned Barcode: ${code}`;
-      setTimeout(closeScan, 900);
-    },
+
+    onScanSuccess,
+
     ()=>{}
-  ).catch(err=>{
-    document.getElementById('scanStatus').textContent = 'Camera error: ' + err;
+  )
+  .catch(err=>{
+
+    document.getElementById(
+      'scanStatus'
+    ).textContent =
+      'Camera access failed: ' +
+      err;
   });
 });
 
-document.getElementById('captureOcrBtn').addEventListener('click', async ()=>{
-  if(!html5QrCode) return;
-  document.getElementById('scanStatus').textContent = 'Reading text from image...';
-  try {
-    const imageBlob = await html5QrCode.ambilScreenshot ? null : null; // capture screen via video element
-    const videoEl = document.querySelector('#scanner-container video');
-    if(!videoEl){
-      document.getElementById('scanStatus').textContent = 'Camera feed not ready.';
-      return;
-    }
-    const canvas = document.createElement('canvas');
-    canvas.width = videoEl.videoWidth;
-    canvas.height = videoEl.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg');
-
-    document.getElementById('scanStatus').textContent = 'Analyzing text (OCR)... Please wait';
-    const result = await Tesseract.recognize(dataUrl, 'eng');
-    const text = result.data.text;
-    
-    document.getElementById('scanStatus').textContent = 'Text detected!';
-    
-    // Check if product name or item exists in text
-    if(text.includes('126040') || text.toLowerCase().includes('tahina')){
-      const prodSelect = document.getElementById('f_product');
-      if(prodSelect){
-        for(let opt of prodSelect.options){
-          if(opt.text.toLowerCase().includes('tahina 500g x24') || opt.text.toLowerCase().includes('500g')){
-            prodSelect.value = opt.value;
-            break;
-          }
-        }
-      }
-    }
-    document.getElementById('f_batch').value = text.split('\n')[0].trim();
-    setTimeout(closeScan, 1200);
-  } catch(err){
-    document.getElementById('scanStatus').textContent = 'OCR failed: ' + err;
-  }
-});
-
 function closeScan(){
+
   if(html5QrCode){
-    html5QrCode.stop().then(()=>html5QrCode.clear()).catch(()=>{});
+
+    html5QrCode
+      .stop()
+      .then(()=>
+        html5QrCode.clear()
+      )
+      .catch(()=>{});
   }
-  document.getElementById('scanModal').style.display = 'none';
+
+  document.getElementById(
+    'scanModal'
+  ).style.display =
+    'none';
 }
 
-document.getElementById('closeScanBtn').addEventListener('click', closeScan);
+document.getElementById(
+  'closeScanBtn'
+)
+.addEventListener(
+  'click',
+  closeScan
+);
+
+function onScanSuccess(decodedText){
+
+  const code =
+    decodedText.trim();
+
+  // The scanned number always goes into Batch / Lot Number.
+  document.getElementById(
+    'f_batch'
+  ).value =
+    code;
+
+  const product =
+    ITEM_NUMBER_TO_PRODUCT[code];
+
+  if(product){
+
+    const matches =
+      PRODUCT_TO_AREA_LINE[product] || [];
+
+    if(matches.length){
+
+      const area =
+        matches[0].area;
+
+      document.getElementById(
+        'f_area'
+      ).value =
+        area;
+
+      renderLineField(area);
+      renderProductField(area);
+
+      // Only auto-select the line if this product belongs to exactly one line in this area.
+      const uniqueLines =
+        [...new Set(
+          matches
+            .filter(m=>m.area===area)
+            .map(m=>m.line)
+        )].filter(Boolean);
+
+      if(uniqueLines.length === 1){
+
+        const lineEl =
+          document.getElementById('f_line');
+
+        if(lineEl){
+          lineEl.value = uniqueLines[0];
+          renderProductField(area);
+        }
+      }
+
+      const prodEl =
+        document.getElementById(
+          'f_product'
+        );
+
+      if(prodEl)
+        prodEl.value =
+          product;
+
+      renderMaterialsField(
+        document.getElementById(
+          'f_type'
+        ).value,
+        product
+      );
+    }
+
+    document.getElementById(
+      'scanStatus'
+    ).textContent =
+      `Matched: ${product} — Batch set to ${code}`;
+
+  } else {
+
+    document.getElementById(
+      'scanStatus'
+    ).textContent =
+      `Scanned "${code}" — no matching item number, added to Batch/Lot Number.`;
+  }
+
+  setTimeout(
+    closeScan,
+    900
+  );
+}
 
 initForm();
 initCharts();
