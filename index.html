@@ -6,6 +6,7 @@
 <title>Waste Tracker — Halwani Bros</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/1.0.17/tesseract.min.js"></script>
 <style>
   :root{
     --green-900: #163C1B;
@@ -183,6 +184,13 @@
           </div>
           <div id="scanner-container" style="width:100%;"></div>
           <div id="scanStatus" style="font-size:11.5px; color:var(--muted); margin-top:8px; text-align:center;"></div>
+
+          <button type="button" id="ocrBtn" style="width:100%; margin-top:10px; padding:10px; border:1.5px solid var(--green-600); background:var(--white); color:var(--green-700); font-family:inherit; font-weight:700; border-radius:7px; font-size:12.5px; cursor:pointer;">📖 Read Product Name (beta)</button>
+
+          <div style="margin-top:10px; display:flex; gap:6px;">
+            <input type="text" id="manualCodeInput" placeholder="Camera can't read it? Type the batch number" style="flex:1; padding:8px 10px; border:1.5px solid var(--line); border-radius:7px; font-family:inherit; font-size:12px;">
+            <button type="button" id="manualCodeBtn" style="padding:8px 14px; border:1.5px solid var(--green-600); background:var(--green-100); color:var(--green-700); font-family:inherit; font-weight:700; border-radius:7px; font-size:12px; cursor:pointer;">Use</button>
+          </div>
         </div>
       </div>
 
@@ -2322,8 +2330,7 @@ document.getElementById('scanBtn')
     { facingMode:"environment" },
 
     {
-      fps:10,
-      qrbox: { width: 260, height: 140 },
+      fps:15,
       experimentalFeatures: {
         useBarCodeDetectorIfSupported: true
       }
@@ -2369,92 +2376,189 @@ document.getElementById(
   closeScan
 );
 
+// Fills Area, Line (only if this product belongs to a single line) and Product
+// for a known product name. Used by both the item-number barcode match and OCR match.
+function applyProductMatch(product){
+
+  const matches =
+    PRODUCT_TO_AREA_LINE[product] || [];
+
+  if(!matches.length) return;
+
+  const area =
+    matches[0].area;
+
+  document.getElementById('f_area').value = area;
+
+  renderLineField(area);
+  renderProductField(area);
+
+  const uniqueLines =
+    [...new Set(
+      matches
+        .filter(m=>m.area===area)
+        .map(m=>m.line)
+    )].filter(Boolean);
+
+  if(uniqueLines.length === 1){
+
+    const lineEl =
+      document.getElementById('f_line');
+
+    if(lineEl){
+      lineEl.value = uniqueLines[0];
+      renderProductField(area);
+    }
+  }
+
+  const prodEl =
+    document.getElementById('f_product');
+
+  if(prodEl)
+    prodEl.value = product;
+
+  renderMaterialsField(
+    document.getElementById('f_type').value,
+    product
+  );
+}
+
+// The barcode on the Halwani sticker encodes the PRODUCTION BATCH NUMBER, not the item
+// number or product name — so the scanned value always goes to Batch / Lot Number.
+// If it happens to match a known item number too, we bonus-fill the product/area/line.
 function onScanSuccess(decodedText){
 
   const code =
     decodedText.trim();
 
-  // The scanned number always goes into Batch / Lot Number.
-  document.getElementById(
-    'f_batch'
-  ).value =
-    code;
+  document.getElementById('f_batch').value = code;
 
   const product =
     ITEM_NUMBER_TO_PRODUCT[code];
 
   if(product){
 
-    const matches =
-      PRODUCT_TO_AREA_LINE[product] || [];
+    applyProductMatch(product);
 
-    if(matches.length){
-
-      const area =
-        matches[0].area;
-
-      document.getElementById(
-        'f_area'
-      ).value =
-        area;
-
-      renderLineField(area);
-      renderProductField(area);
-
-      // Only auto-select the line if this product belongs to exactly one line in this area.
-      const uniqueLines =
-        [...new Set(
-          matches
-            .filter(m=>m.area===area)
-            .map(m=>m.line)
-        )].filter(Boolean);
-
-      if(uniqueLines.length === 1){
-
-        const lineEl =
-          document.getElementById('f_line');
-
-        if(lineEl){
-          lineEl.value = uniqueLines[0];
-          renderProductField(area);
-        }
-      }
-
-      const prodEl =
-        document.getElementById(
-          'f_product'
-        );
-
-      if(prodEl)
-        prodEl.value =
-          product;
-
-      renderMaterialsField(
-        document.getElementById(
-          'f_type'
-        ).value,
-        product
-      );
-    }
-
-    document.getElementById(
-      'scanStatus'
-    ).textContent =
-      `Matched: ${product} — Batch set to ${code}`;
+    document.getElementById('scanStatus').textContent =
+      `Batch set to ${code} — matched product: ${product}`;
 
   } else {
 
-    document.getElementById(
-      'scanStatus'
-    ).textContent =
-      `Scanned "${code}" — no matching item number, added to Batch/Lot Number.`;
+    document.getElementById('scanStatus').textContent =
+      `Batch set to ${code}. Use "Read Product Name" to auto-fill the product.`;
   }
 
-  setTimeout(
-    closeScan,
-    900
-  );
+  setTimeout(closeScan, 900);
 }
+
+function tokenize(s){
+  return (String(s||'').toUpperCase().match(/[0-9]+|[A-Z]+/g) || []);
+}
+
+// Best-effort fuzzy match of OCR'd label text against the known English product names.
+function matchProductFromText(rawText){
+
+  const ocrTokens =
+    new Set(tokenize(rawText));
+
+  let best = null;
+  let bestScore = 0;
+
+  Object.keys(PRODUCT_TO_AREA_LINE).forEach(p=>{
+
+    const pTokens = tokenize(p);
+
+    if(!pTokens.length) return;
+
+    const matched =
+      pTokens.filter(t=>ocrTokens.has(t)).length;
+
+    const score = matched / pTokens.length;
+
+    if(score > bestScore){
+      bestScore = score;
+      best = p;
+    }
+  });
+
+  return bestScore >= 0.65 ? best : null;
+}
+
+async function ocrCaptureAndMatch(){
+
+  const statusEl =
+    document.getElementById('scanStatus');
+
+  const videoEl =
+    document.querySelector('#scanner-container video');
+
+  if(!videoEl || !videoEl.videoWidth){
+    statusEl.textContent = 'Camera not ready yet — wait a second and try again.';
+    return;
+  }
+
+  if(typeof Tesseract === 'undefined'){
+    statusEl.textContent = 'OCR library failed to load. Check your connection and try again.';
+    return;
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = videoEl.videoWidth;
+  canvas.height = videoEl.videoHeight;
+  canvas.getContext('2d').drawImage(videoEl, 0, 0);
+
+  statusEl.textContent = 'Reading product name...';
+
+  try{
+
+    Tesseract.recognize(canvas)
+      .progress(p=>{
+        if(p && p.progress != null){
+          statusEl.textContent =
+            `Reading product name... ${Math.round(p.progress*100)}%`;
+        }
+      })
+      .then(result=>{
+
+        const text = (result && result.text) || '';
+
+        const matched = matchProductFromText(text);
+
+        if(matched){
+
+          applyProductMatch(matched);
+
+          statusEl.textContent = `Matched product: ${matched}`;
+
+          setTimeout(closeScan, 900);
+
+        } else {
+
+          statusEl.textContent =
+            'Could not confidently read the product name — try better lighting/focus, or pick the product manually.';
+        }
+      })
+      .catch(err=>{
+        statusEl.textContent = 'OCR failed: ' + err;
+      });
+
+  } catch(err){
+    statusEl.textContent = 'OCR failed: ' + err;
+  }
+}
+
+document.getElementById('ocrBtn')
+.addEventListener('click', ocrCaptureAndMatch);
+
+document.getElementById('manualCodeBtn')
+.addEventListener('click', ()=>{
+  const val = document.getElementById('manualCodeInput').value.trim();
+  if(val){
+    onScanSuccess(val);
+    document.getElementById('manualCodeInput').value = '';
+  }
+});
 
 initForm();
 initCharts();
