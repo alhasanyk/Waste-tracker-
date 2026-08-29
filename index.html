@@ -2313,6 +2313,12 @@ document.getElementById('scanBtn')
           Html5QrcodeSupportedFormats.CODABAR,
           Html5QrcodeSupportedFormats.ITF
         ],
+        // NOTE: this belongs in the Html5Qrcode constructor config, not in start()'s
+        // scan config below — putting it there (as before) was silently ignored.
+        useBarCodeDetectorIfSupported: true,
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true
+        },
         verbose: false
       }
     );
@@ -2324,8 +2330,15 @@ document.getElementById('scanBtn')
     {
       fps:15,
       qrbox: { width: 260, height: 140 },
-      experimentalFeatures: {
-        useBarCodeDetectorIfSupported: true
+      // Request a much higher-resolution camera stream. The default feed html5-qrcode
+      // requests is fairly low-res, which is fine for QR codes but often too coarse to
+      // resolve a dense 1D barcode like this one (17 characters = lots of thin bars) —
+      // even though a dedicated scanner app, which typically grabs a sharper still frame,
+      // can read it fine.
+      videoConstraints: {
+        width: { min: 1280, ideal: 1920, max: 2560 },
+        height: { min: 720, ideal: 1080, max: 1440 },
+        facingMode: "environment"
       }
     },
 
