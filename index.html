@@ -284,6 +284,7 @@
           <div id="photoPreviewWrap" class="hidden" style="margin-top:10px; position:relative;">
             <img id="photoPreview" style="width:100%; max-height:260px; object-fit:cover; border-radius:8px; border:1.5px solid var(--line); display:block;">
             <button type="button" id="removePhotoBtn" style="position:absolute; top:8px; right:8px; border:1.5px solid var(--red); background:rgba(255,255,255,.92); color:var(--red); font-family:inherit; font-size:11.5px; font-weight:700; padding:6px 10px; border-radius:20px; cursor:pointer;">✕ Remove</button>
+            <div id="photoUploadStatus" style="margin-top:6px; font-size:11.5px; font-weight:600; text-align:center;"></div>
           </div>
         </div>
       </div>
@@ -343,6 +344,11 @@
 
 <script>
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby8hOju5U-3Fg1g0WOrmpjKd-0X8mbtjaRMF5u247cXgnpAtgy2DKdAqnQRf0Z4Ba3NNw/exec';
+
+const CLOUDINARY_CLOUD_NAME = 'v8aacyaau';
+const CLOUDINARY_UPLOAD_PRESET = 'Waste pics';
+const CLOUDINARY_UPLOAD_URL =
+  `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
 
 // Area 1 now depends on Line (L1 / L2), not just Area — replaces the old flat product list
 const AREA_LINES = {
@@ -751,7 +757,9 @@ document.getElementById('f_type').addEventListener('change', (e)=>
   )
 );
 
-let photoBase64 = '';
+let photoBase64 = ''; // local preview only, never sent to the sheet
+let photoUrl = '';     // Cloudinary secure_url — this is what gets saved
+let photoUploading = false;
 
 function compressImage(file, maxWidth){
   return new Promise((resolve, reject)=>{
@@ -794,6 +802,38 @@ function compressImage(file, maxWidth){
   });
 }
 
+function setPhotoUploadStatus(text, kind){
+  const el = document.getElementById('photoUploadStatus');
+  el.textContent = text || '';
+  el.style.color =
+    kind === 'error' ? 'var(--red)' :
+    kind === 'ok' ? 'var(--green-700)' :
+    'var(--muted)';
+}
+
+async function uploadPhotoToCloudinary(blob){
+  const form = new FormData();
+  form.append('file', blob);
+  form.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+  const res = await fetch(CLOUDINARY_UPLOAD_URL, {
+    method: 'POST',
+    body: form
+  });
+
+  if(!res.ok){
+    throw new Error('Cloudinary upload failed: HTTP ' + res.status);
+  }
+
+  const json = await res.json();
+
+  if(!json.secure_url){
+    throw new Error('Cloudinary response had no secure_url');
+  }
+
+  return json.secure_url;
+}
+
 document.getElementById('takePhotoBtn')
 .addEventListener('click', ()=>{
   document.getElementById('f_photo').click();
@@ -804,6 +844,8 @@ document.getElementById('f_photo')
   const file = e.target.files[0];
 
   if(!file) return;
+
+  photoUrl = '';
 
   photoBase64 =
     await compressImage(file, 1024);
@@ -816,16 +858,48 @@ document.getElementById('f_photo')
 
   document.getElementById('takePhotoBtn').textContent =
     '📸 Retake Picture';
+
+  photoUploading = true;
+  document.getElementById('saveBtn').disabled = true;
+  setPhotoUploadStatus('Uploading photo...', 'muted');
+
+  try{
+
+    const blob =
+      await (await fetch(photoBase64)).blob();
+
+    photoUrl =
+      await uploadPhotoToCloudinary(blob);
+
+    setPhotoUploadStatus('✓ Photo uploaded', 'ok');
+
+  } catch(err){
+
+    console.error('Cloudinary upload error:', err);
+
+    setPhotoUploadStatus(
+      '⚠ Upload failed — tap Retake Picture to try again',
+      'error'
+    );
+
+  } finally {
+
+    photoUploading = false;
+    document.getElementById('saveBtn').disabled = false;
+  }
 });
 
 document.getElementById('removePhotoBtn')
 .addEventListener('click', ()=>{
   photoBase64 = '';
+  photoUrl = '';
 
   document.getElementById('f_photo').value = '';
 
   document.getElementById('photoPreviewWrap')
     .classList.add('hidden');
+
+  setPhotoUploadStatus('');
 
   document.getElementById('takePhotoBtn').textContent =
     '📸 Take a Picture';
@@ -970,6 +1044,18 @@ function initForm(){
 
 document.getElementById('saveBtn')
 .addEventListener('click', async ()=>{
+
+  if(photoUploading){
+
+    const msg0 =
+      document.getElementById('saveMsg');
+
+    msg0.className = 'save-msg err';
+    msg0.textContent =
+      'Please wait for the photo to finish uploading before saving.';
+
+    return;
+  }
 
   const productEl =
     document.getElementById('f_product');
@@ -1152,7 +1238,7 @@ document.getElementById('saveBtn')
       document.getElementById('f_status').value,
 
     photo:
-      photoBase64 || ''
+      photoUrl || ''
   };
 
   const msg2 =
@@ -1228,11 +1314,14 @@ document.getElementById('saveBtn')
   document.getElementById('f_reporter_type').value='';
 
   photoBase64 = '';
+  photoUrl = '';
 
   document.getElementById('f_photo').value = '';
 
   document.getElementById('photoPreviewWrap')
     .classList.add('hidden');
+
+  setPhotoUploadStatus('');
 
   document.getElementById('takePhotoBtn').textContent =
     '📸 Take a Picture';
