@@ -821,13 +821,17 @@ async function uploadPhotoToCloudinary(blob){
     body: form
   });
 
+  const json = await res.json().catch(()=>null);
+
   if(!res.ok){
-    throw new Error('Cloudinary upload failed: HTTP ' + res.status);
+    const detail =
+      (json && json.error && json.error.message) ||
+      ('HTTP ' + res.status);
+
+    throw new Error(detail);
   }
 
-  const json = await res.json();
-
-  if(!json.secure_url){
+  if(!json || !json.secure_url){
     throw new Error('Cloudinary response had no secure_url');
   }
 
@@ -878,7 +882,7 @@ document.getElementById('f_photo')
     console.error('Cloudinary upload error:', err);
 
     setPhotoUploadStatus(
-      '⚠ Upload failed — tap Retake Picture to try again',
+      '⚠ Upload failed: ' + (err.message || err) + ' — tap Retake Picture to try again',
       'error'
     );
 
