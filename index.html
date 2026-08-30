@@ -6,6 +6,7 @@
 <title>Waste Tracker — Halwani Bros</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/1.0.17/tesseract.min.js"></script>
 <style>
   :root{
     --green-900: #163C1B;
@@ -206,21 +207,25 @@
           </div>
         </div>
         <div class="row2" id="reporterFieldsContainer"></div>
-        <div class="field"><label>Area</label>
-          <select id="f_area"><option>Area 1</option><option>Area 2</option><option>Area 3</option><option>Area 4</option></select>
-        </div>
-        <div class="field"><label>Batch / Lot Number</label><input type="text" id="f_batch" placeholder="e.g., B-2026-0811"></div>
       </div>
 
       <div class="panel">
         <div class="panel-title">Product &amp; Stage</div>
-        <div class="field" id="lineFieldWrapper" style="display:none;">
-          <label>Line</label>
-          <div id="lineFieldContainer"></div>
+        <div class="row2">
+          <div class="field"><label>Area</label>
+            <select id="f_area"><option>Area 1</option><option>Area 2</option><option>Area 3</option><option>Area 4</option></select>
+          </div>
+          <div class="field" id="lineFieldWrapper" style="display:none;">
+            <label>Line</label>
+            <div id="lineFieldContainer"></div>
+          </div>
         </div>
-        <div class="field">
-          <label>Product / Material</label>
-          <div id="productFieldContainer"></div>
+        <div class="row2">
+          <div class="field">
+            <label>Product</label>
+            <div id="productFieldContainer"></div>
+          </div>
+          <div class="field"><label>Batch / Lot Number</label><input type="text" id="f_batch" placeholder="e.g., B-2026-0811"></div>
         </div>
         <div class="row2">
           <div class="field"><label>Stage</label>
@@ -249,22 +254,24 @@
 
       <div class="panel">
         <div class="panel-title">Cause &amp; Corrective Action</div>
-        <div class="field"><label>Cause</label>
-          <select id="f_cause">
-            <option>Raw Material Defect</option>
-            <option>Equipment Malfunction</option>
-            <option>Human / Operational Error</option>
-            <option>Expired Shelf Life</option>
-            <option>Microbiological Contamination</option>
-            <option>Incorrect Process Settings</option>
-            <option>Storage Damage</option>
-            <option>Packaging / Labeling Error</option>
-            <option value="MR">MR</option>
-            <option>Other</option>
-          </select>
-        </div>
-        <div class="field"><label>Status</label>
-          <select id="f_status"><option value="Resolved">Resolved</option><option value="Under Review">Under Review</option></select>
+        <div class="row2">
+          <div class="field"><label>Cause</label>
+            <select id="f_cause">
+              <option>Raw Material Defect</option>
+              <option>Equipment Malfunction</option>
+              <option>Human / Operational Error</option>
+              <option>Expired Shelf Life</option>
+              <option>Microbiological Contamination</option>
+              <option>Incorrect Process Settings</option>
+              <option>Storage Damage</option>
+              <option>Packaging / Labeling Error</option>
+              <option value="MR">MR</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="field"><label>Status</label>
+            <select id="f_status"><option value="Resolved">Resolved</option><option value="Under Review">Under Review</option></select>
+          </div>
         </div>
         <div class="field" id="mrFieldWrapper" style="display:none;">
           <label>MR Number</label>
@@ -2445,6 +2452,9 @@ document.getElementById('scanBtn')
 
     ()=>{}
   )
+  .then(()=>{
+    startOcrPoll();
+  })
   .catch(err=>{
 
     document.getElementById(
@@ -2455,7 +2465,91 @@ document.getElementById('scanBtn')
   });
 });
 
+let ocrInterval = null;
+let ocrBusy = false;
+let ocrBatchFilled = false;
+let ocrProductFilled = false;
+
+async function runOcrTick(){
+
+  if(ocrBusy) return;
+
+  const videoEl =
+    document.querySelector('#scanner-container video');
+
+  if(!videoEl || !videoEl.videoWidth) return;
+  if(typeof Tesseract === 'undefined') return;
+
+  ocrBusy = true;
+
+  try{
+
+    const canvas = document.createElement('canvas');
+    canvas.width = videoEl.videoWidth;
+    canvas.height = videoEl.videoHeight;
+    canvas.getContext('2d').drawImage(videoEl, 0, 0);
+
+    const result = await Tesseract.recognize(canvas);
+    const text = (result && result.text) || '';
+
+    if(!ocrBatchFilled){
+      const batch = extractBatchNumber(text);
+      if(batch){
+        document.getElementById('f_batch').value = batch;
+        ocrBatchFilled = true;
+      }
+    }
+
+    if(!ocrProductFilled){
+      const product = matchProductFromText(text);
+      if(product){
+        applyProductMatch(product);
+        ocrProductFilled = true;
+      }
+    }
+
+    if(ocrBatchFilled || ocrProductFilled){
+
+      const parts = [];
+
+      if(ocrBatchFilled)
+        parts.push('Batch: ' + document.getElementById('f_batch').value);
+
+      if(ocrProductFilled)
+        parts.push('Product matched');
+
+      document.getElementById('scanStatus').textContent = parts.join(' · ');
+    }
+
+    if(ocrBatchFilled && ocrProductFilled){
+      stopOcrPoll();
+      setTimeout(closeScan, 900);
+    }
+
+  } catch(err){
+    console.error('OCR tick error:', err);
+  } finally {
+    ocrBusy = false;
+  }
+}
+
+function startOcrPoll(){
+  stopOcrPoll();
+  ocrBatchFilled = false;
+  ocrProductFilled = false;
+  ocrInterval = setInterval(runOcrTick, 1200);
+}
+
+function stopOcrPoll(){
+  if(ocrInterval){
+    clearInterval(ocrInterval);
+    ocrInterval = null;
+  }
+}
+
 function closeScan(){
+
+  stopOcrPoll();
 
   if(html5QrCode){
 
@@ -2480,6 +2574,48 @@ document.getElementById(
   'click',
   closeScan
 );
+
+// --- OCR helpers (read the plain printed text on the sticker, not the barcode symbol) ---
+
+// Matches the printed batch number pattern, e.g. "A260825-00542613"
+// (1-3 letters, 5-8 digits, a dash, then 5-10 digits).
+function extractBatchNumber(text){
+  const m = String(text||'').toUpperCase().match(/\b[A-Z]{1,3}\d{5,8}-\d{5,10}\b/);
+  return m ? m[0] : null;
+}
+
+function tokenize(s){
+  return (String(s||'').toUpperCase().match(/[0-9]+|[A-Z]+/g) || []);
+}
+
+// Best-effort fuzzy match of OCR'd label text against the known English product names.
+function matchProductFromText(rawText){
+
+  const ocrTokens =
+    new Set(tokenize(rawText));
+
+  let best = null;
+  let bestScore = 0;
+
+  Object.keys(PRODUCT_TO_AREA_LINE).forEach(p=>{
+
+    const pTokens = tokenize(p);
+
+    if(!pTokens.length) return;
+
+    const matched =
+      pTokens.filter(t=>ocrTokens.has(t)).length;
+
+    const score = matched / pTokens.length;
+
+    if(score > bestScore){
+      bestScore = score;
+      best = p;
+    }
+  });
+
+  return bestScore >= 0.65 ? best : null;
+}
 
 // Fills Area, Line (only if this product belongs to a single line) and Product
 // for a known product name. Used by both the item-number barcode match and OCR match.
@@ -2537,6 +2673,7 @@ function onScanSuccess(decodedText){
     decodedText.trim();
 
   document.getElementById('f_batch').value = code;
+  ocrBatchFilled = true;
 
   const product =
     ITEM_NUMBER_TO_PRODUCT[code];
@@ -2544,6 +2681,7 @@ function onScanSuccess(decodedText){
   if(product){
 
     applyProductMatch(product);
+    ocrProductFilled = true;
 
     document.getElementById('scanStatus').textContent =
       `Batch set to ${code} — matched product: ${product}`;
@@ -2551,7 +2689,7 @@ function onScanSuccess(decodedText){
   } else {
 
     document.getElementById('scanStatus').textContent =
-      `Batch set to ${code}. Use "Read Product Name" to auto-fill the product.`;
+      `Batch set to ${code}. Reading product name...`;
   }
 
   setTimeout(closeScan, 900);
